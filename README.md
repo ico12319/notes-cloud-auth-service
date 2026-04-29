@@ -1,0 +1,1 @@
+# notes-in-cloud-auth-service
