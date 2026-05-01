@@ -43,8 +43,8 @@ func NewHealthHandler(databaseChecker databaseChecker) *healthHandler {
 }
 
 func (h *healthHandler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/healthz", h.Healthz).Methods(http.MethodGet)
-	r.HandleFunc("/readyz", h.Readyz).Methods(http.MethodGet)
+	r.HandleFunc("/authService/api/v1/healthz", h.Healthz).Methods(http.MethodGet)
+	r.HandleFunc("/authService/api/v1/readyz", h.Readyz).Methods(http.MethodGet)
 }
 
 func (h *healthHandler) Healthz(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +66,7 @@ func (h *healthHandler) Readyz(w http.ResponseWriter, r *http.Request) {
 			checks["database"] = "unhealthy: " + err.Error()
 			allReady = false
 		} else {
-			checks["database"] = "ok"
+			checks["database"] = "healthy"
 		}
 	}
 
