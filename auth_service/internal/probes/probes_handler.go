@@ -9,14 +9,19 @@ import (
 	"github.com/gorilla/mux"
 )
 
+const (
+	readyStatus    = "ready"
+	notReadyStatus = "not ready"
+
+	healthyStatus   = "healthy"
+	unhealthyStatus = "unhealthy"
+
+	databaseKey = "database"
+)
+
 type healthResponse struct {
 	Status string `json:"status"`
 }
-
-func (h *healthResponse) SetStatus(status string) {
-	h.Status = status
-}
-
 type readyResponse struct {
 	Status string            `json:"status"`
 	Checks map[string]string `json:"checks"`
@@ -48,7 +53,7 @@ func (h *healthHandler) RegisterRoutes(r *mux.Router) {
 }
 
 func (h *healthHandler) Healthz(w http.ResponseWriter, r *http.Request) {
-	if err := json.NewEncoder(w).Encode(healthResponse{Status: "ok"}); err != nil {
+	if err := json.NewEncoder(w).Encode(healthResponse{Status: readyStatus}); err != nil {
 		http.Error(w, "failed to encode JSON response", http.StatusInternalServerError)
 		return
 	}
@@ -63,10 +68,10 @@ func (h *healthHandler) Readyz(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 
 		if err := h.databaseChecker.PingContext(ctx); err != nil {
-			checks["database"] = "unhealthy: " + err.Error()
+			checks[databaseKey] = unhealthyStatus + err.Error()
 			allReady = false
 		} else {
-			checks["database"] = "healthy"
+			checks[databaseKey] = healthyStatus
 		}
 	}
 
@@ -74,9 +79,9 @@ func (h *healthHandler) Readyz(w http.ResponseWriter, r *http.Request) {
 	resp.SetChecks(checks)
 
 	if allReady {
-		resp.SetStatus("ok")
+		resp.SetStatus(readyStatus)
 	} else {
-		resp.SetStatus("not ready")
+		resp.SetStatus(notReadyStatus)
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 

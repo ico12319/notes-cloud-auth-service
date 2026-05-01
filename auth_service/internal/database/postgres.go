@@ -2,8 +2,8 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
+	"github.com/jmoiron/sqlx"
 	"time"
 
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/config"
@@ -11,13 +11,13 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func Connect(cfg config.Database) (*sql.DB, error) {
+func Connect(cfg config.Database) (*sqlx.DB, error) {
 	dsn := fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode,
 	)
 
-	db, err := sql.Open("postgres", dsn)
+	db, err := sqlx.Open("postgres", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
