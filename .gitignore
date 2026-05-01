@@ -1,0 +1,52 @@
+# IDEs / Editors
+.idea/
+.vscode/
+*.iml
+
+# macOS
+.DS_Store
+
+# Go build artifacts
+bin/
+dist/
+build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go workspace / vendor
+go.work
+go.work.sum
+vendor/
+
+# Coverage files
+coverage.out
+coverage.html
+*.coverprofile
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+.cache/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Docker
+docker-compose.override.yml
+
+# Air / local dev hot reload
+.air.toml
+
+# Local config
+config.local.*

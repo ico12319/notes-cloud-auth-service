@@ -1,0 +1,12 @@
+.git
+.idea
+.vscode
+Dockerfile
+README.md
+
+*.log
+tmp/
+dist/
+build/
+
+.DS_Store
