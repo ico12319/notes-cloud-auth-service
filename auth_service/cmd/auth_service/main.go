@@ -4,6 +4,12 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+
+	"github.com/gorilla/mux"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/config"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/database"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/middleware"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/probes"
 )
 
 type output struct {
@@ -11,27 +17,37 @@ type output struct {
 }
 
 func main() {
-	mux := http.NewServeMux()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
 
-	mux.HandleFunc("/authService/api/v1/hello-world", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
+	db, err := database.Connect(cfg.Database)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer db.Close()
 
-		w.Header().Set("Content-Type", "application/json")
+	log.Println("Connected to database")
 
+	r := mux.NewRouter()
+	r.Use(middleware.JSONContentType)
+
+	healthHandler := probes.NewHealthHandler(db)
+	healthHandler.RegisterRoutes(r)
+
+	r.HandleFunc("/authService/api/v1/hello-world", func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewEncoder(w).Encode(&output{
 			Text: "Hello world",
 		}); err != nil {
 			http.Error(w, "failed to encode JSON response", http.StatusInternalServerError)
 			return
 		}
-	})
+	}).Methods(http.MethodGet)
 
 	log.Println("Server started on http://localhost:8081")
 
-	if err := http.ListenAndServe(":8081", mux); err != nil {
+	if err := http.ListenAndServe(":8081", r); err != nil {
 		log.Fatal(err)
 	}
 }
