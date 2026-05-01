@@ -29,9 +29,9 @@ func main() {
 		}
 	})
 
-	log.Println("Server started on http://localhost:8080")
+	log.Println("Server started on http://localhost:8081")
 
-	if err := http.ListenAndServe(":8080", mux); err != nil {
+	if err := http.ListenAndServe(":8081", mux); err != nil {
 		log.Fatal(err)
 	}
 }
