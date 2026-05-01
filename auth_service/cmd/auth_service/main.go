@@ -2,14 +2,14 @@ package main
 
 import (
 	"encoding/json"
-	"log"
-	"net/http"
-
 	"github.com/gorilla/mux"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/config"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/database"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/middleware"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/probes"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/users"
+	"log"
+	"net/http"
 )
 
 type output struct {
@@ -35,6 +35,12 @@ func main() {
 
 	healthHandler := probes.NewHealthHandler(db)
 	healthHandler.RegisterRoutes(r)
+
+	userRepo := users.NewRepository()
+	userConverter := users.NewConverter()
+	userService := users.NewService(userRepo, userConverter)
+	usersHandler := users.NewHandler(userService, database.NewSqlDb(db))
+	usersHandler.RegisterRoutes(r)
 
 	r.HandleFunc("/authService/api/v1/hello-world", func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewEncoder(w).Encode(&output{
