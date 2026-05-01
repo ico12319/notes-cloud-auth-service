@@ -22,6 +22,6 @@ WORKDIR /app
 
 COPY --from=builder /auth-service /app/auth-service
 
-EXPOSE 8080
+EXPOSE 8081
 
 CMD ["/app/auth-service"]
