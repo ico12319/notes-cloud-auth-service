@@ -10,7 +10,7 @@ import (
 )
 
 type passwordService interface {
-	GeneratePasswordHash(password []byte) ([]byte, error)
+	GeneratePasswordHash(password string) ([]byte, error)
 }
 
 type uuidService interface {
@@ -22,7 +22,8 @@ type timeService interface {
 }
 
 type userRepository interface {
-	Create(ctx context.Context, passwordHash []byte, user *models.User) error
+	Create(ctx context.Context, user *models.User) error
+	GetByEmail(ctx context.Context, email string) (*models.User, error)
 }
 
 type service struct {
@@ -51,7 +52,7 @@ func (s *service) Create(ctx context.Context, registerRequest *request_models.Re
 		return nil, fmt.Errorf("register input can't be nil")
 	}
 
-	passwordHash, err := s.passwordService.GeneratePasswordHash([]byte(registerRequest.Password))
+	passwordHash, err := s.passwordService.GeneratePasswordHash(registerRequest.Password)
 	if err != nil {
 		log.Printf("failed to generate password hash for user with email %s", registerRequest.Email)
 
@@ -59,17 +60,22 @@ func (s *service) Create(ctx context.Context, registerRequest *request_models.Re
 	}
 
 	registeredUser := &models.User{
-		ID:        s.uuidService.Generate(),
-		FirstName: registerRequest.FirstName,
-		LastName:  registerRequest.LastName,
-		Email:     registerRequest.Email,
-		CreatedAt: s.timeService.Now(),
+		ID:           s.uuidService.Generate(),
+		FirstName:    registerRequest.FirstName,
+		LastName:     registerRequest.LastName,
+		Email:        registerRequest.Email,
+		CreatedAt:    s.timeService.Now(),
+		PasswordHash: string(passwordHash),
 	}
 
-	if err := s.userRepository.Create(ctx, passwordHash, registeredUser); err != nil {
+	if err := s.userRepository.Create(ctx, registeredUser); err != nil {
 		log.Printf("kude gurmish be da ta eba %s", err.Error())
 		return nil, err
 	}
 
 	return registeredUser, nil
+}
+
+func (s *service) FindByEmail(ctx context.Context, email string) (*models.User, error) {
+	return s.userRepository.GetByEmail(ctx, email)
 }

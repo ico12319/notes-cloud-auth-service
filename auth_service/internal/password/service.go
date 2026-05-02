@@ -8,6 +8,10 @@ func NewService() *service {
 	return &service{}
 }
 
-func (s *service) GeneratePasswordHash(password []byte) ([]byte, error) {
-	return bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+func (*service) GeneratePasswordHash(password string) ([]byte, error) {
+	return bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+}
+
+func (*service) CompareHashAndPassword(hashedPassword string, password string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }
