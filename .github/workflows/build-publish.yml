@@ -1,0 +1,36 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  IMAGE_NAME: hristo12319/notes-cloud-auth-service
+
+jobs:
+  build:
+    name: Build and push Docker image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            -t ${{ env.IMAGE_NAME }}:v1 \
+            .
+
+      - name: Push Docker image
+        run: |
+          docker push ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push ${{ env.IMAGE_NAME }}:v1
