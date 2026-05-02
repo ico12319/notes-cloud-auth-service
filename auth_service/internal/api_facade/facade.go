@@ -57,7 +57,7 @@ func (*apiFacade) Start() {
 	userConverter := users.NewConverter()
 	userRepo := users.NewRepository(userConverter)
 	userService := users.NewService(userRepo, passwordService, timeService, uuidService)
-	userHandler := users.NewHandler(transact, structValidator, userService)
+	userHandler := users.NewHandler(transact, structValidator, userService, userConverter)
 
 	refreshTokenConverter := refresh_tokens.NewConverter()
 	refreshTokenRepository := refresh_tokens.NewRepository(refreshTokenConverter)
