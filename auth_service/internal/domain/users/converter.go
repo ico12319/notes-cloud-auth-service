@@ -15,7 +15,7 @@ func NewConverter() *converter {
 	return &converter{}
 }
 
-func (*converter) ToEntity(user *models.User, passwordHash []byte) (*Entity, error) {
+func (*converter) ToEntity(user *models.User) (*Entity, error) {
 	stringifiedID, err := uuid.Parse(user.ID)
 	if err != nil {
 		log.Printf("failed to stringify user id %s: err: %s", user.ID, err.Error())
@@ -28,19 +28,20 @@ func (*converter) ToEntity(user *models.User, passwordHash []byte) (*Entity, err
 		FirstName:    user.FirstName,
 		LastName:     user.LastName,
 		Email:        user.Email,
-		PasswordHash: string(passwordHash),
+		PasswordHash: user.PasswordHash,
 		CreatedAt:    user.CreatedAt,
 	}, nil
 }
 
 func (*converter) ToModel(entity *Entity) *models.User {
 	return &models.User{
-		ID:        entity.ID.String(),
-		FirstName: entity.FirstName,
-		LastName:  entity.LastName,
-		Email:     entity.Email,
-		CreatedAt: entity.CreatedAt,
-		UpdatedAt: nullTimeToPtr(entity.UpdatedAt),
+		ID:           entity.ID.String(),
+		FirstName:    entity.FirstName,
+		LastName:     entity.LastName,
+		Email:        entity.Email,
+		CreatedAt:    entity.CreatedAt,
+		PasswordHash: entity.PasswordHash,
+		UpdatedAt:    nullTimeToPtr(entity.UpdatedAt),
 	}
 }
 

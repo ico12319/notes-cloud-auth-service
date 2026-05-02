@@ -2,8 +2,10 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"strconv"
+	"time"
 )
 
 type Database struct {
@@ -15,8 +17,21 @@ type Database struct {
 	SSLMode  string `json:"sslmode"`
 }
 
+type AccessToken struct {
+	Secret   string        `json:"secret"`
+	Issuer   string        `json:"issuer"`
+	Audience string        `json:"audience"`
+	TTL      time.Duration `json:"TTL"`
+}
+
+type RefreshToken struct {
+	Secret string `json:"secret"`
+}
+
 type Config struct {
-	Database Database `json:"database"`
+	Database     Database     `json:"database"`
+	AccessToken  AccessToken  `json:"accessToken"`
+	RefreshToken RefreshToken `json:"refreshToken"`
 }
 
 func Load() (*Config, error) {
@@ -57,6 +72,26 @@ func Load() (*Config, error) {
 	}
 	if v := getEnv("DB_SSLMODE"); v != "" {
 		cfg.Database.SSLMode = v
+	}
+	if v := getEnv("JWT_SECRET"); v != "" {
+		cfg.AccessToken.Secret = v
+	}
+	if v := getEnv("JWT_ISSUER"); v != "" {
+		cfg.AccessToken.Issuer = v
+	}
+	if v := getEnv("JWT_AUDIENCE"); v != "" {
+		cfg.AccessToken.Audience = v
+	}
+	if v := getEnv("JWT_TTL"); v != "" {
+		ttl, err := time.ParseDuration(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JWT_TTL %q: %w", v, err)
+		}
+
+		cfg.AccessToken.TTL = ttl
+	}
+	if v := getEnv("REFRESH_TOKEN_SECRET"); v != "" {
+		cfg.RefreshToken.Secret = v
 	}
 
 	return cfg, nil
