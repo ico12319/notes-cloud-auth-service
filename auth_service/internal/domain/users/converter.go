@@ -45,6 +45,16 @@ func (*converter) ToModel(entity *Entity) *models.User {
 	}
 }
 
+func (*converter) ToUserResponse(user *models.User) *UserResponse {
+	return &UserResponse{
+		ID:        user.ID,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+	}
+}
+
 func nullTimeToPtr(nt sql.NullTime) *time.Time {
 	if nt.Valid {
 		return &nt.Time

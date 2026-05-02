@@ -43,16 +43,27 @@ func (r *repository) Create(ctx context.Context, user *models.User) error {
 }
 
 func (r *repository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
+	selectQuery := `SELECT id, first_name, last_name, email, password_hash, created_at, updated_at                                                                                                                                                 
+                  FROM auth_service.users WHERE email = $1`
+
+	return r.get(ctx, selectQuery, email)
+}
+
+func (r *repository) GetByID(ctx context.Context, id string) (*models.User, error) {
+	selectQuery := `SELECT id, first_name, last_name, email, password_hash, created_at, updated_at                                                                                                                                                 
+                  FROM auth_service.users WHERE id = $1`
+
+	return r.get(ctx, selectQuery, id)
+}
+
+func (r *repository) get(ctx context.Context, query string, key string) (*models.User, error) {
 	persistence, err := database.FromCtx(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	selectQuery := `SELECT id, first_name, last_name, email, password_hash, created_at, updated_at                                                                                                                                                 
-                  FROM auth_service.users WHERE email = $1`
-
 	var entity Entity
-	if err := persistence.GetContext(ctx, &entity, selectQuery, email); err != nil {
+	if err := persistence.GetContext(ctx, &entity, query, key); err != nil {
 		return nil, err
 	}
 

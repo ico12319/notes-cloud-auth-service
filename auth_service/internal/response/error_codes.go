@@ -6,10 +6,15 @@ const (
 	ErrCodeTransactionBeginFailed  = "TRANSACTION_BEGIN_FAILED"
 	ErrCodeEmailAlreadyExists      = "EMAIL_ALREADY_EXISTS"
 	ErrCodeUserRegistrationFailed  = "USER_REGISTRATION_FAILED"
+	ErrCodeUserNotFound            = "USER_NOT_FOUND"
 	ErrCodeTransactionCommitFailed = "TRANSACTION_COMMIT_FAILED"
 	ErrCodeInternalServerError     = "INTERNAL_SERVER_ERROR"
+	ErrCodeUnauthorized            = "UNAUTHORIZED"
 
 	ErrCodeInvalidLoginCredentials = "INVALID_LOGIN_CREDENTIALS"
 	ErrCodeUserLoginFailed         = "USER_LOGIN_FAILED"
 	ErrCodeUserLogoutFailed        = "USER_LOGOUT_FAILED"
+
+	ErrMissingTokenFromHeader = "MISSING_HEADER_TOKEN"
+	ErrInvalidToken           = "INVALID_ACCESS_TOKEN"
 )
