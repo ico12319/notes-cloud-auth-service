@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
-
-	"github.com/gorilla/mux"
 )
 
 const (
@@ -45,11 +43,6 @@ type healthHandler struct {
 
 func NewHealthHandler(databaseChecker databaseChecker) *healthHandler {
 	return &healthHandler{databaseChecker: databaseChecker}
-}
-
-func (h *healthHandler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/authService/api/v1/healthz", h.Healthz).Methods(http.MethodGet)
-	r.HandleFunc("/authService/api/v1/readyz", h.Readyz).Methods(http.MethodGet)
 }
 
 func (h *healthHandler) Healthz(w http.ResponseWriter, r *http.Request) {

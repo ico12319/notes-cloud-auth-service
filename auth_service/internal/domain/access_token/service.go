@@ -1,6 +1,7 @@
 package access_token
 
 import (
+	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/config"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/models"
@@ -9,35 +10,30 @@ import (
 
 const tokenTypeBearer = "Bearer"
 
-type AccessTokenClaims struct {
-	UserID string `json:"userId"`
-	Email  string `json:"email"`
-
-	jwt.RegisteredClaims
-}
-
 type timeService interface {
 	Now() time.Time
 }
 
-type jwtGenerator interface {
-	GenerateSignedJWT(claims jwt.Claims, secret []byte) (string, error)
+type AccessTokenClaims struct {
+	UserID string `json:"userId"`
+
+	jwt.RegisteredClaims
 }
 
 type service struct {
-	timeService  timeService
-	cfg          config.AccessToken
-	jwtGenerator jwtGenerator
+	timeService        timeService
+	cfg                config.AccessToken
+	tokenSigningMethod jwt.SigningMethod
 }
 
 func NewService(
-	jwtGenerator jwtGenerator,
 	timeService timeService,
-	cfg config.AccessToken) *service {
+	cfg config.AccessToken,
+	tokenSigningMethod jwt.SigningMethod) *service {
 	return &service{
-		jwtGenerator: jwtGenerator,
-		timeService:  timeService,
-		cfg:          cfg,
+		timeService:        timeService,
+		cfg:                cfg,
+		tokenSigningMethod: tokenSigningMethod,
 	}
 }
 
@@ -58,15 +54,45 @@ func (s *service) GenerateForUser(
 		},
 	}
 
-	signedJWT, err := s.jwtGenerator.GenerateSignedJWT(claims, []byte(s.cfg.Secret))
+	signedToken, err := jwt.NewWithClaims(s.tokenSigningMethod, claims).SignedString([]byte(s.cfg.Secret))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("sign access token: %w", err)
 	}
 
 	return &models.AccessToken{
-		Token:     signedJWT,
+		Token:     signedToken,
 		TokenType: tokenTypeBearer,
 		ExpiresIn: int(s.cfg.TTL.Seconds()),
 		ExpiresAt: expiresAt,
 	}, nil
+}
+
+func (s *service) ValidateAccessToken(
+	rawToken string,
+) (*AccessTokenClaims, error) {
+	token, err := jwt.ParseWithClaims(
+		rawToken,
+		&AccessTokenClaims{},
+		func(token *jwt.Token) (any, error) {
+			if token.Method != s.tokenSigningMethod {
+				return nil, fmt.Errorf("unexpected signing method: %s", token.Method.Alg())
+			}
+
+			return []byte(s.cfg.Secret), nil
+		},
+		jwt.WithIssuer(s.cfg.Issuer),
+		jwt.WithAudience(s.cfg.Audience),
+		jwt.WithExpirationRequired(),
+		jwt.WithIssuedAt(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("parse access token: %w", err)
+	}
+
+	claims, ok := token.Claims.(*AccessTokenClaims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("invalid access token claims")
+	}
+
+	return claims, nil
 }

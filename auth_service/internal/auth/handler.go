@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/gorilla/mux"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/database"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/models"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/request_models"
@@ -37,11 +36,6 @@ func NewHandler(
 		loginService:        loginService,
 		refreshTokenRevoker: refreshTokenRevoker,
 	}
-}
-
-func (h *handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/authService/api/v1/login", h.Login).Methods(http.MethodPost)
-	r.HandleFunc("/authService/api/v1/logout", h.Logout).Methods(http.MethodPost)
 }
 
 func (h *handler) Login(w http.ResponseWriter, r *http.Request) {

@@ -24,6 +24,7 @@ type timeService interface {
 type userRepository interface {
 	Create(ctx context.Context, user *models.User) error
 	GetByEmail(ctx context.Context, email string) (*models.User, error)
+	GetByID(ctx context.Context, id string) (*models.User, error)
 }
 
 type service struct {
@@ -78,4 +79,8 @@ func (s *service) Create(ctx context.Context, registerRequest *request_models.Re
 
 func (s *service) FindByEmail(ctx context.Context, email string) (*models.User, error) {
 	return s.userRepository.GetByEmail(ctx, email)
+}
+
+func (s *service) FindByID(ctx context.Context, id string) (*models.User, error) {
+	return s.userRepository.GetByID(ctx, id)
 }

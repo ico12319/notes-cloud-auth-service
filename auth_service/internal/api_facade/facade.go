@@ -2,7 +2,7 @@ package api_facade
 
 import (
 	"github.com/go-playground/validator/v10"
-	jwt2 "github.com/golang-jwt/jwt/v5"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/auth"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/config"
@@ -11,7 +11,6 @@ import (
 	refresh_tokens "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/refresh_token"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/users"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/encoder"
-	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/jwt"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/middleware"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/password"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/probes"
@@ -48,31 +47,38 @@ func (*apiFacade) Start() {
 	passwordService := password.NewService()
 	randomService := random.NewService()
 	stringEncoder := encoder.NewService()
-	jwtGenerator := jwt.NewGenerator(jwt2.SigningMethodHS512)
 	transact := database.NewSqlDb(db)
 
 	r := mux.NewRouter()
 	r.Use(middleware.JSONContentType)
 
 	healthHandler := probes.NewHealthHandler(db)
-	healthHandler.RegisterRoutes(r)
 
 	userConverter := users.NewConverter()
 	userRepo := users.NewRepository(userConverter)
 	userService := users.NewService(userRepo, passwordService, timeService, uuidService)
 	userHandler := users.NewHandler(transact, structValidator, userService)
-	userHandler.RegisterRoutes(r)
 
 	refreshTokenConverter := refresh_tokens.NewConverter()
 	refreshTokenRepository := refresh_tokens.NewRepository(refreshTokenConverter)
 	refreshTokenService := refresh_tokens.NewService(refreshTokenRepository, randomService, stringEncoder, uuidService, timeService,
 		cfg.RefreshToken.Secret)
-	accessTokenService := access_token.NewService(jwtGenerator, timeService, cfg.AccessToken)
+	accessTokenService := access_token.NewService(timeService, cfg.AccessToken, jwt.SigningMethodHS256)
 
 	authService := auth.NewService(userService, accessTokenService, refreshTokenService, passwordService)
 	authHandler := auth.NewHandler(authService, transact, refreshTokenService)
 
-	authHandler.RegisterRoutes(r)
+	// Public routes
+	r.HandleFunc("/authService/api/v1/healthz", healthHandler.Healthz).Methods(http.MethodGet)
+	r.HandleFunc("/authService/api/v1/readyz", healthHandler.Readyz).Methods(http.MethodGet)
+	r.HandleFunc("/authService/api/v1/register", userHandler.Register).Methods(http.MethodPost)
+	r.HandleFunc("/authService/api/v1/login", authHandler.Login).Methods(http.MethodPost)
+	r.HandleFunc("/authService/api/v1/logout", authHandler.Logout).Methods(http.MethodPost)
+
+	// Protected routes
+	protected := r.NewRoute().Subrouter()
+	protected.Use(middleware.AuthMiddleware(accessTokenService))
+	protected.HandleFunc("/authService/api/v1/me", userHandler.Me).Methods(http.MethodGet)
 
 	log.Println("Server started on http://localhost:8081")
 
