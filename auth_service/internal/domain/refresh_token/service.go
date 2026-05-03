@@ -4,9 +4,9 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/api_errors"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/models"
 	"log"
 	"strings"
@@ -33,6 +33,7 @@ type randomService interface {
 type refreshTokenRepository interface {
 	Create(ctx context.Context, refreshToken *models.RefreshToken, tokenHash string) error
 	Revoke(ctx context.Context, tokenID string) error
+	Get(ctx context.Context, tokenID string) (*models.RefreshToken, error)
 }
 
 type timeService interface {
@@ -100,7 +101,7 @@ func (s *service) Revoke(ctx context.Context, rawToken string) error {
 	}
 
 	if err := s.refreshTokenRepository.Revoke(ctx, tokenID); err != nil {
-		if errors.Is(err, ErrTokenNotFound) {
+		if api_errors.IsInvalidRefreshTokenError(err) {
 			log.Printf("refresh token with id %s is already deleted, won't revoked it", tokenID)
 
 			return nil
@@ -110,6 +111,22 @@ func (s *service) Revoke(ctx context.Context, rawToken string) error {
 	}
 
 	return nil
+}
+
+func (s *service) Get(ctx context.Context, rawToken string) (*models.RefreshToken, error) {
+	tokenID, err := s.extractIDFromRawToken(rawToken)
+	if err != nil {
+		log.Printf("failed to extract id from raw token %s", err.Error())
+
+		return nil, err
+	}
+
+	token, err := s.refreshTokenRepository.Get(ctx, tokenID)
+	if err != nil {
+		return nil, err
+	}
+
+	return token, nil
 }
 
 func (s *service) hashRefreshToken(rawToken string, secretKey []byte) string {

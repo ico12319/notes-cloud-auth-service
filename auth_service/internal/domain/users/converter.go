@@ -51,6 +51,7 @@ func (*converter) ToUserResponse(user *models.User) *UserResponse {
 		FirstName: user.FirstName,
 		LastName:  user.LastName,
 		CreatedAt: user.CreatedAt,
+		Email:     user.Email,
 		UpdatedAt: user.UpdatedAt,
 	}
 }

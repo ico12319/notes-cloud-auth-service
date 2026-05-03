@@ -2,7 +2,7 @@ package refresh_tokens
 
 import (
 	"context"
-	"fmt"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/api_errors"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/database"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/models"
 	"log"
@@ -10,9 +10,8 @@ import (
 
 type refreshTokenConverter interface {
 	ToEntity(refreshToken *models.RefreshToken, tokenHash string) (*Entity, error)
+	ToModel(entity *Entity) *models.RefreshToken
 }
-
-var ErrTokenNotFound = fmt.Errorf("refresh token does not exist")
 
 type repository struct {
 	refreshTokenConverter refreshTokenConverter
@@ -66,8 +65,25 @@ func (r *repository) Revoke(ctx context.Context, id string) error {
 	}
 
 	if rowsAffected == 0 {
-		return ErrTokenNotFound
+		return api_errors.ErrTokenNotFound
 	}
 
 	return nil
+}
+
+func (r *repository) Get(ctx context.Context, id string) (*models.RefreshToken, error) {
+	persistence, err := database.FromCtx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	selectQuery := `SELECT id, user_id, token_hash, expires_at, revoked_at, created_at FROM auth_service.refresh_tokens 
+					WHERE id = $1 FOR UPDATE`
+
+	var entity Entity
+	if err := persistence.GetContext(ctx, &entity, selectQuery, id); err != nil {
+		return nil, err
+	}
+
+	return r.refreshTokenConverter.ToModel(&entity), nil
 }

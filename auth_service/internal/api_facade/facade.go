@@ -9,6 +9,7 @@ import (
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/database"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/access_token"
 	refresh_tokens "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/refresh_token"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/token_bundle"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/users"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/encoder"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/middleware"
@@ -65,8 +66,9 @@ func (*apiFacade) Start() {
 		cfg.RefreshToken.Secret)
 	accessTokenService := access_token.NewService(timeService, cfg.AccessToken, jwt.SigningMethodHS256)
 
-	authService := auth.NewService(userService, accessTokenService, refreshTokenService, passwordService)
-	authHandler := auth.NewHandler(authService, transact, refreshTokenService)
+	tokenBundleService := token_bundle.NewService(accessTokenService, refreshTokenService, userService, timeService)
+	authService := auth.NewService(userService, tokenBundleService, passwordService)
+	authHandler := auth.NewHandler(authService, transact, refreshTokenService, tokenBundleService)
 
 	// Public routes
 	r.HandleFunc("/authService/api/v1/healthz", healthHandler.Healthz).Methods(http.MethodGet)
@@ -74,6 +76,7 @@ func (*apiFacade) Start() {
 	r.HandleFunc("/authService/api/v1/register", userHandler.Register).Methods(http.MethodPost)
 	r.HandleFunc("/authService/api/v1/login", authHandler.Login).Methods(http.MethodPost)
 	r.HandleFunc("/authService/api/v1/logout", authHandler.Logout).Methods(http.MethodPost)
+	r.HandleFunc("/authService/api/v1/refresh", authHandler.Refresh).Methods(http.MethodPost)
 
 	// Protected routes
 	protected := r.NewRoute().Subrouter()
