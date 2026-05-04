@@ -35,6 +35,7 @@ type GoogleOIDC struct {
 	RedirectURL  string   `json:"redirectUrl"`
 	Scopes       []string `json:"scopes"`
 	IssuerURL    string   `json:"issuerUrl"`
+	CookieSecret string   `json:"cookieSecret"`
 }
 
 type Config struct {
@@ -52,11 +53,6 @@ func Load() (*Config, error) {
 			User:    "postgres",
 			DBName:  "auth_service",
 			SSLMode: "disable",
-		},
-		GoogleOIDC: GoogleOIDC{
-			IssuerURL:   "https://accounts.google.com",
-			RedirectURL: "http://localhost:8081/authService/api/v1/auth/google/callback",
-			Scopes:      []string{"openid", "email", "profile"},
 		},
 	}
 
@@ -122,6 +118,9 @@ func Load() (*Config, error) {
 	}
 	if v := getEnv("GOOGLE_OIDC_SCOPES"); v != "" {
 		cfg.GoogleOIDC.Scopes = strings.Split(v, ",")
+	}
+	if v := getEnv("OAUTH_COOKIE_SECRET"); v != "" {
+		cfg.GoogleOIDC.CookieSecret = v
 	}
 
 	return cfg, nil

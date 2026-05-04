@@ -52,8 +52,10 @@ func (*apiFacade) Start() {
 
 	log.Println("Google OIDC provider initialized")
 
-	// TODO: Wire oidcProvider into Google auth handler
-	_ = oidcProvider
+	oidcCookieService, err := oidc.NewCookieService(cfg.GoogleOIDC.CookieSecret)
+	if err != nil {
+		log.Fatalf("Failed to initialize OIDC cookie service: %v", err)
+	}
 
 	structValidator := validator.New()
 	uuidService := uuid.NewService()
@@ -83,6 +85,8 @@ func (*apiFacade) Start() {
 	authService := auth.NewService(userService, tokenBundleService, passwordService)
 	authHandler := auth.NewHandler(authService, transact, refreshTokenService, tokenBundleService)
 
+	oidcHandler := oidc.NewHandler(oidcProvider, oidcCookieService, randomService, stringEncoder)
+
 	// Public routes
 	r.HandleFunc("/authService/api/v1/healthz", healthHandler.Healthz).Methods(http.MethodGet)
 	r.HandleFunc("/authService/api/v1/readyz", healthHandler.Readyz).Methods(http.MethodGet)
@@ -90,6 +94,7 @@ func (*apiFacade) Start() {
 	r.HandleFunc("/authService/api/v1/login", authHandler.Login).Methods(http.MethodPost)
 	r.HandleFunc("/authService/api/v1/logout", authHandler.Logout).Methods(http.MethodPost)
 	r.HandleFunc("/authService/api/v1/refresh", authHandler.Refresh).Methods(http.MethodPost)
+	r.HandleFunc("/authService/api/v1/auth/google/start", oidcHandler.Start).Methods(http.MethodGet)
 
 	// Protected routes
 	protected := r.NewRoute().Subrouter()
