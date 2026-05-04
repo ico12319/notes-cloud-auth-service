@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -28,10 +29,19 @@ type RefreshToken struct {
 	Secret string `json:"secret"`
 }
 
+type GoogleOIDC struct {
+	ClientID     string   `json:"clientId"`
+	ClientSecret string   `json:"clientSecret"`
+	RedirectURL  string   `json:"redirectUrl"`
+	Scopes       []string `json:"scopes"`
+	IssuerURL    string   `json:"issuerUrl"`
+}
+
 type Config struct {
 	Database     Database     `json:"database"`
 	AccessToken  AccessToken  `json:"accessToken"`
 	RefreshToken RefreshToken `json:"refreshToken"`
+	GoogleOIDC   GoogleOIDC   `json:"googleOidc"`
 }
 
 func Load() (*Config, error) {
@@ -42,6 +52,11 @@ func Load() (*Config, error) {
 			User:    "postgres",
 			DBName:  "auth_service",
 			SSLMode: "disable",
+		},
+		GoogleOIDC: GoogleOIDC{
+			IssuerURL:   "https://accounts.google.com",
+			RedirectURL: "http://localhost:8081/authService/api/v1/auth/google/callback",
+			Scopes:      []string{"openid", "email", "profile"},
 		},
 	}
 
@@ -92,6 +107,21 @@ func Load() (*Config, error) {
 	}
 	if v := getEnv("REFRESH_TOKEN_SECRET"); v != "" {
 		cfg.RefreshToken.Secret = v
+	}
+	if v := getEnv("GOOGLE_CLIENT_ID"); v != "" {
+		cfg.GoogleOIDC.ClientID = v
+	}
+	if v := getEnv("GOOGLE_CLIENT_SECRET"); v != "" {
+		cfg.GoogleOIDC.ClientSecret = v
+	}
+	if v := getEnv("GOOGLE_REDIRECT_URL"); v != "" {
+		cfg.GoogleOIDC.RedirectURL = v
+	}
+	if v := getEnv("GOOGLE_OIDC_ISSUER_URL"); v != "" {
+		cfg.GoogleOIDC.IssuerURL = v
+	}
+	if v := getEnv("GOOGLE_OIDC_SCOPES"); v != "" {
+		cfg.GoogleOIDC.Scopes = strings.Split(v, ",")
 	}
 
 	return cfg, nil

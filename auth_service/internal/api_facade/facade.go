@@ -1,6 +1,8 @@
 package api_facade
 
 import (
+	"context"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
@@ -13,6 +15,7 @@ import (
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/users"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/encoder"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/middleware"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/oidc"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/password"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/probes"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/random"
@@ -41,6 +44,16 @@ func (*apiFacade) Start() {
 	defer db.Close()
 
 	log.Println("Connected to database")
+
+	oidcProvider, err := oidc.NewProvider(context.Background(), cfg.GoogleOIDC)
+	if err != nil {
+		log.Fatalf("Failed to initialize OIDC provider: %v", err)
+	}
+
+	log.Println("Google OIDC provider initialized")
+
+	// TODO: Wire oidcProvider into Google auth handler
+	_ = oidcProvider
 
 	structValidator := validator.New()
 	uuidService := uuid.NewService()
