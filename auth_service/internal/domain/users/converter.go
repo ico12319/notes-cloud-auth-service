@@ -1,12 +1,10 @@
 package users
 
 import (
-	"database/sql"
-	"log"
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/models"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/util"
+	"log"
 )
 
 type converter struct{}
@@ -41,7 +39,7 @@ func (*converter) ToModel(entity *Entity) *models.User {
 		Email:        entity.Email,
 		CreatedAt:    entity.CreatedAt,
 		PasswordHash: entity.PasswordHash,
-		UpdatedAt:    nullTimeToPtr(entity.UpdatedAt),
+		UpdatedAt:    util.NullTimeToPtr(entity.UpdatedAt),
 	}
 }
 
@@ -54,11 +52,4 @@ func (*converter) ToUserResponse(user *models.User) *UserResponse {
 		Email:     user.Email,
 		UpdatedAt: user.UpdatedAt,
 	}
-}
-
-func nullTimeToPtr(nt sql.NullTime) *time.Time {
-	if nt.Valid {
-		return &nt.Time
-	}
-	return nil
 }

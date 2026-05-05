@@ -1,4 +1,4 @@
-package oidc
+package oauth
 
 import (
 	"crypto/aes"
@@ -17,10 +17,11 @@ type OAuthSession struct {
 }
 
 type CookieService struct {
-	aead cipher.AEAD
+	aead          cipher.AEAD
+	secureCookies bool
 }
 
-func NewCookieService(secret string) (*CookieService, error) {
+func NewCookieService(secret string, secureCookies bool) (*CookieService, error) {
 	block, err := aes.NewCipher([]byte(secret))
 	if err != nil {
 		return nil, fmt.Errorf("oidc cookie: invalid secret length (must be 32 bytes): %w", err)
@@ -31,7 +32,10 @@ func NewCookieService(secret string) (*CookieService, error) {
 		return nil, fmt.Errorf("oidc cookie: failed to create GCM: %w", err)
 	}
 
-	return &CookieService{aead: aead}, nil
+	return &CookieService{
+		aead:          aead,
+		secureCookies: secureCookies,
+	}, nil
 }
 
 func (cs *CookieService) SetOAuthCookie(w http.ResponseWriter, session OAuthSession) error {
@@ -51,10 +55,10 @@ func (cs *CookieService) SetOAuthCookie(w http.ResponseWriter, session OAuthSess
 	http.SetCookie(w, &http.Cookie{
 		Name:     "oauth_session",
 		Value:    encoded,
-		Path:     "/authService/api/v1/auth/google",
+		Path:     "/authService/api/v1/auth", // covers both /google/login and /google/callback (and future /github/*)
 		MaxAge:   600,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   cs.secureCookies, // false in dev, true in prod
 		SameSite: http.SameSiteLaxMode,
 	})
 

@@ -3,7 +3,10 @@ package oidc
 import (
 	"context"
 	"fmt"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/database"
 	http_helpers "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/http"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/models"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/oauth"
 	"log"
 	"net/http"
 	"time"
@@ -11,81 +14,87 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type randomReader interface {
-	Read(b []byte) (n int, err error)
-}
-
-type stringEncoder interface {
-	EncodeToString(b []byte) string
+type randomGenerator interface {
+	GenerateRandomString(length int) (string, error)
 }
 
 type cookieService interface {
-	SetOAuthCookie(w http.ResponseWriter, session OAuthSession) error
-	ReadOAuthCookie(r *http.Request) (*OAuthSession, error)
+	SetOAuthCookie(w http.ResponseWriter, session oauth.OAuthSession) error
+	ReadOAuthCookie(r *http.Request) (*oauth.OAuthSession, error)
 	ClearOAuthCookie(w http.ResponseWriter)
 }
 
-type idTokenVerificator interface {
-	Verify(ctx context.Context, exchangedToken *oauth2.Token, session *OAuthSession) error
+type userAuthInfoExtractor interface {
+	Extract(ctx context.Context, token *oauth2.Token, session *oauth.OAuthSession) (*models.UserAuthInfo, error)
+}
+
+type userResolver interface {
+	ResolveUser(ctx context.Context, userAuthInfo *models.UserAuthInfo) (*models.User, error)
+}
+
+type tokenBundleIssuer interface {
+	GenerateBundle(ctx context.Context, userID string) (*models.TokenBundle, error)
 }
 
 type handler struct {
-	provider           *Provider
-	cookieService      cookieService
-	random             randomReader
-	encoder            stringEncoder
-	idTokenVerificator idTokenVerificator
+	transact              database.Transactioner
+	oidcProvider          OIDCProvider
+	cookieService         cookieService
+	randomGenerator       randomGenerator
+	userAuthInfoExtractor userAuthInfoExtractor
+	userResolver          userResolver
+	tokenBundleIssuer     tokenBundleIssuer
 }
 
 func NewHandler(
-	provider *Provider,
+	oidcProvider OIDCProvider,
 	cookieService cookieService,
-	random randomReader,
-	encoder stringEncoder,
-	idTokenVerificator idTokenVerificator,
+	generator randomGenerator,
+	userAuthInfoExtractor userAuthInfoExtractor,
+	userResolver userResolver,
+	tokenBundleIssuer tokenBundleIssuer,
+	transact database.Transactioner,
 ) *handler {
 	return &handler{
-		provider:           provider,
-		cookieService:      cookieService,
-		random:             random,
-		encoder:            encoder,
-		idTokenVerificator: idTokenVerificator,
+		oidcProvider:          oidcProvider,
+		cookieService:         cookieService,
+		randomGenerator:       generator,
+		userAuthInfoExtractor: userAuthInfoExtractor,
+		userResolver:          userResolver,
+		tokenBundleIssuer:     tokenBundleIssuer,
+		transact:              transact,
 	}
 }
 
 func (h *handler) Start(w http.ResponseWriter, r *http.Request) {
 	log.Println("GET /auth/google/start hit")
 
-	state, err := h.generateRandomString(32)
+	state, err := h.randomGenerator.GenerateRandomString(32)
 	if err != nil {
 		log.Printf("failed to generate state: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
 		return
 	}
 
-	nonce, err := h.generateRandomString(32)
+	nonce, err := h.randomGenerator.GenerateRandomString(32)
 	if err != nil {
 		log.Printf("failed to generate nonce: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
 		return
 	}
 
-	session := OAuthSession{
+	session := oauth.OAuthSession{
 		State: state,
 		Nonce: nonce,
 	}
 
 	if err := h.cookieService.SetOAuthCookie(w, session); err != nil {
 		log.Printf("failed to set oauth cookie: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
 		return
 	}
 
-	authURL := h.provider.OAuth2Config.AuthCodeURL(state,
-		oauth2.SetAuthURLParam("nonce", nonce),
-		oauth2.SetAuthURLParam("access_type", "online"),
-		oauth2.SetAuthURLParam("prompt", "select_account"),
-	)
+	authURL := h.oidcProvider.WithState(state).WithNonce(nonce).BuildAuthCodeURL()
 
 	log.Printf("redirecting to auth url %s", authURL)
 
@@ -111,7 +120,6 @@ func (h *handler) Callback(w http.ResponseWriter, r *http.Request) {
 	if stateInURLQuery == "" || stateInURLQuery != session.State {
 		http_helpers.WriteErrorResponse(w, http.StatusBadRequest, http_helpers.ErrInvalidOauthState,
 			fmt.Sprintf("invalid oauth state"))
-
 		return
 	}
 
@@ -122,27 +130,44 @@ func (h *handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.provider.OAuth2Config.Exchange(
-		ctx,
-		authCode,
-	)
+	token, err := h.oidcProvider.ExchangeAuthCodeForAccessToken(ctx, authCode)
 	if err != nil {
 		http_helpers.WriteErrorResponse(w, http.StatusBadRequest, http_helpers.ErrFailedToLoginWithOIDCProvider,
-			fmt.Sprintf("failed to login with google"))
+			fmt.Sprintf("failed to login with provider"))
 		return
 	}
 
-	if err := h.idTokenVerificator.Verify(ctx, token, session); err != nil {
+	userAuthInfo, err := h.userAuthInfoExtractor.Extract(ctx, token, session)
+	if err != nil {
 		http_helpers.WriteErrorResponse(w, http.StatusBadRequest, http_helpers.ErrFailedToValidateIDToken, err.Error())
 		return
 	}
 
-}
-
-func (h *handler) generateRandomString(length int) (string, error) {
-	b := make([]byte, length)
-	if _, err := h.random.Read(b); err != nil {
-		return "", err
+	tx, err := h.transact.BeginContext(ctx)
+	if err != nil {
+		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
+		return
 	}
-	return h.encoder.EncodeToString(b), nil
+	defer h.transact.RollbackUnlessCommitted(ctx, tx)
+
+	ctx = database.SaveToContext(ctx, tx)
+
+	resolvedUser, err := h.userResolver.ResolveUser(ctx, userAuthInfo)
+	if err != nil {
+		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
+		return
+	}
+
+	tokenBundle, err := h.tokenBundleIssuer.GenerateBundle(ctx, resolvedUser.ID)
+	if err != nil {
+		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
+		return
+	}
+
+	http_helpers.WriteSuccessResponse(w, http.StatusOK, tokenBundle)
 }

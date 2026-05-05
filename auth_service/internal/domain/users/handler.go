@@ -26,6 +26,10 @@ type userResponseConverter interface {
 	ToUserResponse(user *models.User) *UserResponse
 }
 
+type passwordValidator interface {
+	ValidatePassword(password *string) error
+}
+
 type UserResponse struct {
 	ID        string     `json:"id"`
 	FirstName string     `json:"firstName"`
@@ -40,18 +44,21 @@ type handler struct {
 	structValidator       structValidator
 	userService           userService
 	userResponseConverter userResponseConverter
+	passwordValidator     passwordValidator
 }
 
 func NewHandler(
 	transact database.Transactioner,
 	structValidator structValidator,
 	userService userService,
-	userResponseConverter userResponseConverter) *handler {
+	userResponseConverter userResponseConverter,
+	passwordValidator passwordValidator) *handler {
 	return &handler{
 		transact:              transact,
 		structValidator:       structValidator,
 		userService:           userService,
 		userResponseConverter: userResponseConverter,
+		passwordValidator:     passwordValidator,
 	}
 }
 
@@ -60,6 +67,11 @@ func (h *handler) Register(w http.ResponseWriter, r *http.Request) {
 
 	var request request_models.RegisterRequest
 	if err := http_helpers.DecodeRequestBody(w, r, &request); err != nil {
+		return
+	}
+
+	if err := h.passwordValidator.ValidatePassword(request.Password); err != nil {
+		http_helpers.WriteErrorResponse(w, http.StatusBadRequest, http_helpers.ErrCodeInvalidLoginCredentials, err.Error())
 		return
 	}
 

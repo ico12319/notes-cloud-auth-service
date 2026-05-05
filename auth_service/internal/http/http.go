@@ -20,6 +20,7 @@ const (
 	ErrCodeInvalidLoginCredentials = "INVALID_LOGIN_CREDENTIALS"
 	ErrCodeUserLoginFailed         = "USER_LOGIN_FAILED"
 	ErrCodeUserLogoutFailed        = "USER_LOGOUT_FAILED"
+	ErrInvalidPasswordLength       = "INVALID_PASSWORD_LENGTH"
 
 	ErrMissingTokenFromHeader = "MISSING_HEADER_TOKEN"
 	ErrInvalidToken           = "INVALID_ACCESS_TOKEN"
