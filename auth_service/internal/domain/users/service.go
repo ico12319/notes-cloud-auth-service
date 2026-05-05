@@ -67,8 +67,7 @@ func (s *service) Create(ctx context.Context, registerRequest *request_models.Re
 
 	registeredUser := &models.User{
 		ID:        s.uuidService.Generate(),
-		FirstName: registerRequest.FirstName,
-		LastName:  registerRequest.LastName,
+		Name:      registerRequest.Name,
 		Email:     registerRequest.Email,
 		CreatedAt: s.timeService.Now(),
 	}
@@ -156,9 +155,8 @@ func (s *service) resolveOrCreateUser(ctx context.Context, userAuthInfo *models.
 	}
 
 	createdUser, err := s.Create(ctx, &request_models.RegisterRequest{
-		Email:     userAuthInfo.Email,
-		FirstName: userAuthInfo.FirstName,
-		LastName:  userAuthInfo.LastName,
+		Email: userAuthInfo.Email,
+		Name:  userAuthInfo.Name,
 	})
 	if err != nil {
 		return "", err

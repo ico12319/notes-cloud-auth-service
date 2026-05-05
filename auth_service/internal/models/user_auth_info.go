@@ -1,9 +1,8 @@
 package models
 
 type UserPersonalInfo struct {
-	FirstName string
-	LastName  string
-	Email     string
+	Name  string
+	Email string
 }
 
 type UserOIDCInfo struct {

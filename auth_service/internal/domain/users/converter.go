@@ -23,8 +23,7 @@ func (*converter) ToEntity(user *models.User) (*Entity, error) {
 
 	return &Entity{
 		ID:           stringifiedID,
-		FirstName:    user.FirstName,
-		LastName:     user.LastName,
+		DisplayName:  user.Name,
 		Email:        user.Email,
 		PasswordHash: user.PasswordHash,
 		CreatedAt:    user.CreatedAt,
@@ -34,8 +33,7 @@ func (*converter) ToEntity(user *models.User) (*Entity, error) {
 func (*converter) ToModel(entity *Entity) *models.User {
 	return &models.User{
 		ID:           entity.ID.String(),
-		FirstName:    entity.FirstName,
-		LastName:     entity.LastName,
+		Name:         entity.DisplayName,
 		Email:        entity.Email,
 		CreatedAt:    entity.CreatedAt,
 		PasswordHash: entity.PasswordHash,
@@ -45,11 +43,10 @@ func (*converter) ToModel(entity *Entity) *models.User {
 
 func (*converter) ToUserResponse(user *models.User) *UserResponse {
 	return &UserResponse{
-		ID:        user.ID,
-		FirstName: user.FirstName,
-		LastName:  user.LastName,
-		CreatedAt: user.CreatedAt,
-		Email:     user.Email,
-		UpdatedAt: user.UpdatedAt,
+		ID:          user.ID,
+		DisplayName: user.Name,
+		CreatedAt:   user.CreatedAt,
+		Email:       user.Email,
+		UpdatedAt:   user.UpdatedAt,
 	}
 }

@@ -4,9 +4,8 @@ import "time"
 
 type User struct {
 	ID           string     `json:"id"`
-	FirstName    string     `json:"firstName"`
 	PasswordHash *string    `json:"passwordHash"`
-	LastName     string     `json:"lastName"`
+	Name         string     `json:"displayName"`
 	Email        string     `json:"email"`
 	CreatedAt    time.Time  `json:"createdAt"`
 	UpdatedAt    *time.Time `json:"updatedAt,omitempty"`

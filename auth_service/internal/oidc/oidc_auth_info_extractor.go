@@ -33,8 +33,7 @@ func (o *oidcUserAuthInfoExtractor) Extract(ctx context.Context, token *oauth2.T
 		Nonce         string `json:"nonce"`
 		Email         string `json:"email"`
 		EmailVerified bool   `json:"email_verified"`
-		FirstName     string `json:"given_name"`
-		LastName      string `json:"family_name"`
+		Name          string `json:"name"`
 		Subject       string `json:"sub"`
 	}
 
@@ -57,9 +56,8 @@ func (o *oidcUserAuthInfoExtractor) Extract(ctx context.Context, token *oauth2.T
 			Provider:       o.provider.GetProviderType(),
 		},
 		UserPersonalInfo: models.UserPersonalInfo{
-			FirstName: claims.FirstName,
-			LastName:  claims.LastName,
-			Email:     claims.Email,
+			Name:  claims.Name,
+			Email: claims.Email,
 		},
 	}, nil
 }

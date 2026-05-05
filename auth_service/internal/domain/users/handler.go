@@ -31,12 +31,11 @@ type passwordValidator interface {
 }
 
 type UserResponse struct {
-	ID        string     `json:"id"`
-	FirstName string     `json:"firstName"`
-	LastName  string     `json:"lastName"`
-	Email     string     `json:"email"`
-	CreatedAt time.Time  `json:"createdAt"`
-	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+	ID          string     `json:"id"`
+	DisplayName string     `json:"displayName"`
+	Email       string     `json:"email"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   *time.Time `json:"updatedAt,omitempty"`
 }
 
 type handler struct {
