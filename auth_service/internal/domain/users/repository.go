@@ -32,8 +32,8 @@ func (r *repository) Create(ctx context.Context, user *models.User) error {
 		return err
 	}
 
-	insertQuery := `INSERT INTO auth_service.users (id, first_name, last_name, email, password_hash, created_at)
-			  VALUES (:id, :first_name, :last_name, :email, :password_hash, :created_at)`
+	insertQuery := `INSERT INTO auth_service.users (id, display_name, email, password_hash, created_at)
+			  VALUES (:id, :display_name, :email, :password_hash, :created_at)`
 
 	if _, err = persistence.NamedExecContext(ctx, insertQuery, entity); err != nil {
 		return err
@@ -43,14 +43,14 @@ func (r *repository) Create(ctx context.Context, user *models.User) error {
 }
 
 func (r *repository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
-	selectQuery := `SELECT id, first_name, last_name, email, password_hash, created_at, updated_at                                                                                                                                                 
+	selectQuery := `SELECT id, display_name, email, password_hash, created_at, updated_at                                                                                                                                                 
                   FROM auth_service.users WHERE email = $1`
 
 	return r.get(ctx, selectQuery, email)
 }
 
 func (r *repository) GetByID(ctx context.Context, id string) (*models.User, error) {
-	selectQuery := `SELECT id, first_name, last_name, email, password_hash, created_at, updated_at                                                                                                                                                 
+	selectQuery := `SELECT id, display_name, email, password_hash, created_at, updated_at                                                                                                                                                 
                   FROM auth_service.users WHERE id = $1`
 
 	return r.get(ctx, selectQuery, id)

@@ -46,7 +46,11 @@ func (s *service) Login(ctx context.Context, request *request_models.LoginReques
 		return nil, api_errors.ErrWrongLoginCredentials
 	}
 
-	if err := s.passwordService.CompareHashAndPassword(user.PasswordHash, request.Password); err != nil {
+	if user.PasswordHash == nil {
+		return nil, api_errors.ErrWrongLoginCredentials
+	}
+
+	if err := s.passwordService.CompareHashAndPassword(*user.PasswordHash, request.Password); err != nil {
 		return nil, api_errors.ErrWrongLoginCredentials
 	}
 

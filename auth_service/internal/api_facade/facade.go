@@ -1,6 +1,9 @@
 package api_facade
 
 import (
+	"context"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/oauth"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
@@ -10,9 +13,11 @@ import (
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/access_token"
 	refresh_tokens "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/refresh_token"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/token_bundle"
+	user_identities "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/user_identities"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/users"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/encoder"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/middleware"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/oidc"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/password"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/probes"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/random"
@@ -42,12 +47,32 @@ func (*apiFacade) Start() {
 
 	log.Println("Connected to database")
 
+	ctx := context.Background()
+	googleOIDCProvider, err := oidc.NewOIDCProvider(ctx, cfg.OIDCProviders["google"])
+	if err != nil {
+		log.Fatalf("Failed to initialize OIDC provider: %v", err)
+	}
+
+	log.Println("Google OIDC provider initialized")
+
+	gitLabOIDCProvider, err := oidc.NewOIDCProvider(ctx, cfg.OIDCProviders["gitlab"])
+	if err != nil {
+		log.Fatalf("Failed to initialize OIDC provider: %v", err)
+	}
+
+	log.Println("GitLab OIDC provider initialized")
+
+	oidcCookieService, err := oauth.NewCookieService(cfg.Cookie.Secret, false)
+	if err != nil {
+		log.Fatalf("Failed to initialize OIDC cookie service: %v", err)
+	}
+
 	structValidator := validator.New()
 	uuidService := uuid.NewService()
 	timeService := time.NewService()
 	passwordService := password.NewService()
-	randomService := random.NewService()
 	stringEncoder := encoder.NewService()
+	randomService := random.NewService(stringEncoder)
 	transact := database.NewSqlDb(db)
 
 	r := mux.NewRouter()
@@ -57,8 +82,13 @@ func (*apiFacade) Start() {
 
 	userConverter := users.NewConverter()
 	userRepo := users.NewRepository(userConverter)
-	userService := users.NewService(userRepo, passwordService, timeService, uuidService)
-	userHandler := users.NewHandler(transact, structValidator, userService, userConverter)
+
+	identityConverter := user_identities.NewConverter()
+	identityRepo := user_identities.NewRepository(identityConverter)
+	identityService := user_identities.NewService(identityRepo, uuidService, timeService)
+
+	userService := users.NewService(userRepo, passwordService, timeService, uuidService, identityService)
+	userHandler := users.NewHandler(transact, structValidator, userService, userConverter, passwordService)
 
 	refreshTokenConverter := refresh_tokens.NewConverter()
 	refreshTokenRepository := refresh_tokens.NewRepository(refreshTokenConverter)
@@ -70,9 +100,21 @@ func (*apiFacade) Start() {
 	authService := auth.NewService(userService, tokenBundleService, passwordService)
 	authHandler := auth.NewHandler(authService, transact, refreshTokenService, tokenBundleService)
 
+	googleUserAuthInfoExtractor := oidc.NewOIDCUserAuthInfoExtractor(googleOIDCProvider)
+	gitLabUserAuthInfoExtractor := oidc.NewOIDCUserAuthInfoExtractor(gitLabOIDCProvider)
+
+	googleOIDCHandler := oidc.NewHandler(googleOIDCProvider, oidcCookieService, randomService, googleUserAuthInfoExtractor, userService, tokenBundleService, transact)
+	gitLabOIDCHandler := oidc.NewHandler(gitLabOIDCProvider, oidcCookieService, randomService, gitLabUserAuthInfoExtractor, userService, tokenBundleService, transact)
 	// Public routes
 	r.HandleFunc("/authService/api/v1/healthz", healthHandler.Healthz).Methods(http.MethodGet)
 	r.HandleFunc("/authService/api/v1/readyz", healthHandler.Readyz).Methods(http.MethodGet)
+
+	r.HandleFunc("/authService/api/v1/auth/google/start", googleOIDCHandler.Start).Methods(http.MethodGet)
+	r.HandleFunc("/authService/api/v1/auth/google/callback", googleOIDCHandler.Callback).Methods(http.MethodGet)
+
+	r.HandleFunc("/authService/api/v1/auth/gitlab/start", gitLabOIDCHandler.Start).Methods(http.MethodGet)
+	r.HandleFunc("/authService/api/v1/auth/gitlab/callback", gitLabOIDCHandler.Callback).Methods(http.MethodGet)
+
 	r.HandleFunc("/authService/api/v1/register", userHandler.Register).Methods(http.MethodPost)
 	r.HandleFunc("/authService/api/v1/login", authHandler.Login).Methods(http.MethodPost)
 	r.HandleFunc("/authService/api/v1/logout", authHandler.Logout).Methods(http.MethodPost)

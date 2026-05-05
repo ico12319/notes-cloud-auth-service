@@ -20,9 +20,16 @@ const (
 	ErrCodeInvalidLoginCredentials = "INVALID_LOGIN_CREDENTIALS"
 	ErrCodeUserLoginFailed         = "USER_LOGIN_FAILED"
 	ErrCodeUserLogoutFailed        = "USER_LOGOUT_FAILED"
+	ErrInvalidPasswordLength       = "INVALID_PASSWORD_LENGTH"
 
 	ErrMissingTokenFromHeader = "MISSING_HEADER_TOKEN"
 	ErrInvalidToken           = "INVALID_ACCESS_TOKEN"
+
+	ErrInvalidSessionCookie          = "INVALID_SESSION_COOKIE"
+	ErrInvalidOauthState             = "INVALID_OAUTH_STATE"
+	ErrInvalidAuthCode               = "INVALID_AUTH_CODE"
+	ErrFailedToLoginWithOIDCProvider = "FAILED_TO_LOGIN_WITH_OIDC_PROVIDER"
+	ErrFailedToValidateIDToken       = "INVALID_ID_TOKEN"
 )
 
 type ErrorResponse struct {
