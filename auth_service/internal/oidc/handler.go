@@ -2,8 +2,6 @@ package oidc
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"fmt"
 	http_helpers "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/http"
 	"log"
@@ -72,19 +70,9 @@ func (h *handler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	codeVerifier, err := h.generateRandomString(32)
-	if err != nil {
-		log.Printf("failed to generate code_verifier: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-
-	codeChallenge := h.computeCodeChallenge(codeVerifier)
-
 	session := OAuthSession{
-		State:        state,
-		Nonce:        nonce,
-		CodeVerifier: codeVerifier,
+		State: state,
+		Nonce: nonce,
 	}
 
 	if err := h.cookieService.SetOAuthCookie(w, session); err != nil {
@@ -95,8 +83,6 @@ func (h *handler) Start(w http.ResponseWriter, r *http.Request) {
 
 	authURL := h.provider.OAuth2Config.AuthCodeURL(state,
 		oauth2.SetAuthURLParam("nonce", nonce),
-		oauth2.SetAuthURLParam("code_challenge", codeChallenge),
-		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
 		oauth2.SetAuthURLParam("access_type", "online"),
 		oauth2.SetAuthURLParam("prompt", "select_account"),
 	)
@@ -139,7 +125,6 @@ func (h *handler) Callback(w http.ResponseWriter, r *http.Request) {
 	token, err := h.provider.OAuth2Config.Exchange(
 		ctx,
 		authCode,
-		oauth2.SetAuthURLParam("code_verifier", session.CodeVerifier),
 	)
 	if err != nil {
 		http_helpers.WriteErrorResponse(w, http.StatusBadRequest, http_helpers.ErrFailedToLoginWithOIDCProvider,
@@ -160,9 +145,4 @@ func (h *handler) generateRandomString(length int) (string, error) {
 		return "", err
 	}
 	return h.encoder.EncodeToString(b), nil
-}
-
-func (h *handler) computeCodeChallenge(codeVerifier string) string {
-	hash := sha256.Sum256([]byte(codeVerifier))
-	return base64.RawURLEncoding.EncodeToString(hash[:])
 }

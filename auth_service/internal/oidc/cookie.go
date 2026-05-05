@@ -12,9 +12,8 @@ import (
 )
 
 type OAuthSession struct {
-	State        string `json:"state"`
-	Nonce        string `json:"nonce"`
-	CodeVerifier string `json:"code_verifier"`
+	State string `json:"state"`
+	Nonce string `json:"nonce"`
 }
 
 type CookieService struct {

@@ -85,7 +85,7 @@ func (*apiFacade) Start() {
 	authService := auth.NewService(userService, tokenBundleService, passwordService)
 	authHandler := auth.NewHandler(authService, transact, refreshTokenService, tokenBundleService)
 
-	oidcHandler := oidc.NewHandler(oidcProvider, oidcCookieService, randomService, stringEncoder)
+	oidcHandler := oidc.NewHandler(oidcProvider, oidcCookieService, randomService, stringEncoder, oidc.NewIDTokenVerifier(oidcProvider))
 
 	// Public routes
 	r.HandleFunc("/authService/api/v1/healthz", healthHandler.Healthz).Methods(http.MethodGet)
