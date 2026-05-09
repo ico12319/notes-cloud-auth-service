@@ -44,6 +44,13 @@ This centralizes authentication logic and allows backend services to focus on bu
 | POST | `/authService/api/v1/logout` | Logout (invalidate refresh token) |
 | POST | `/authService/api/v1/refresh` | Refresh access token |
 
+### Email Verification (Public)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/authService/api/v1/email/verify` | Verify email with verification code |
+| POST | `/authService/api/v1/email/resend-verification` | Resend verification email |
+
 ### OAuth2/OIDC (Public)
 
 | Method | Endpoint | Description |
