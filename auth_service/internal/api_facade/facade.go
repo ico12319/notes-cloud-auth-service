@@ -2,7 +2,9 @@ package api_facade
 
 import (
 	"context"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/clients"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/oauth"
+	proxy2 "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/proxy"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt/v5"
@@ -106,6 +108,12 @@ func (*apiFacade) Start() {
 
 	googleOIDCHandler := oidc.NewHandler(googleOIDCProvider, oidcCookieService, randomService, googleUserAuthInfoExtractor, userService, tokenBundleService, transact)
 	gitLabOIDCHandler := oidc.NewHandler(gitLabOIDCProvider, oidcCookieService, randomService, gitLabUserAuthInfoExtractor, userService, tokenBundleService, transact)
+
+	todoClient := clients.NewTodoClient(cfg.Services.TodoServiceURL)
+	notesClient := clients.NewNotesClient(cfg.Services.NotesServiceURL)
+	sharingClient := clients.NewSharingClient(cfg.Services.SharingServiceURL)
+	reminderClient := clients.NewReminderNotificationClient(cfg.Services.ReminderServiceURL)
+	proxy := proxy2.NewHandler(todoClient, notesClient, sharingClient, reminderClient)
 	// Public routes
 	r.HandleFunc("/authService/api/v1/healthz", healthHandler.Healthz).Methods(http.MethodGet)
 	r.HandleFunc("/authService/api/v1/readyz", healthHandler.Readyz).Methods(http.MethodGet)
@@ -123,7 +131,7 @@ func (*apiFacade) Start() {
 
 	resendService := email_verification.NewResendService(cfg.Resend.APIKey, cfg.Resend.FromEmail, "https://spii-canary-test.proxy.beeceptor.com/ico")
 	r.HandleFunc("/authService/api/v1/send", func(w http.ResponseWriter, req *http.Request) {
-		if err := resendService.SendVerificationEmail(req.Context(), "josuaa12319@gmail.com", "hgaoghaoguapifhaoyu8ry9ty9giquga"); err != nil {
+		if err := resendService.SendVerificationEmail(req.Context(), "mishoni04@abv.bg", "hgaoghaoguapifhaoyu8ry9ty9giquga"); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -134,6 +142,47 @@ func (*apiFacade) Start() {
 	protected := r.NewRoute().Subrouter()
 	protected.Use(middleware.AuthMiddleware(accessTokenService))
 	protected.HandleFunc("/authService/api/v1/me", userHandler.Me).Methods(http.MethodGet)
+
+	// Todo tasks
+	protected.HandleFunc("/authService/api/v1/todos", proxy.GetTodos).Methods(http.MethodGet)
+	protected.HandleFunc("/authService/api/v1/todos", proxy.CreateTodo).Methods(http.MethodPost)
+	protected.HandleFunc("/authService/api/v1/todos/{todo_id}", proxy.Todo).Methods(http.MethodGet)
+	protected.HandleFunc("/authService/api/v1/todos/{todo_id}", proxy.UpdateTodo).Methods(http.MethodPut)
+	protected.HandleFunc("/authService/api/v1/todos/{todo_id}", proxy.DeleteTodo).Methods(http.MethodDelete)
+
+	// Todo lists
+	protected.HandleFunc("/authService/api/v1/todo-lists", proxy.GetTodoLists).Methods(http.MethodGet)
+	protected.HandleFunc("/authService/api/v1/todo-lists", proxy.CreateTodoList).Methods(http.MethodPost)
+	protected.HandleFunc("/authService/api/v1/todo-lists/{list_id}", proxy.GetTodoList).Methods(http.MethodGet)
+	protected.HandleFunc("/authService/api/v1/todo-lists/{list_id}", proxy.UpdateTodoList).Methods(http.MethodPut)
+	protected.HandleFunc("/authService/api/v1/todo-lists/{list_id}", proxy.DeleteTodoList).Methods(http.MethodDelete)
+
+	// Notes
+	protected.HandleFunc("/authService/api/v1/notes", proxy.GetNotes).Methods(http.MethodGet)
+	protected.HandleFunc("/authService/api/v1/notes", proxy.CreateNote).Methods(http.MethodPost)
+	protected.HandleFunc("/authService/api/v1/notes/{note_id}", proxy.GetNote).Methods(http.MethodGet)
+	protected.HandleFunc("/authService/api/v1/notes/{note_id}", proxy.UpdateNote).Methods(http.MethodPut)
+	protected.HandleFunc("/authService/api/v1/notes/{note_id}", proxy.DeleteNote).Methods(http.MethodDelete)
+
+	// Sharing (protected - create share link)
+	protected.HandleFunc("/authService/api/v1/notes/{note_id}/share-links", proxy.CreateShareLink).Methods(http.MethodPost)
+
+	// Sharing (public - open share link)
+	r.HandleFunc("/authService/api/v1/share-links/{token}", proxy.OpenShareLink).Methods(http.MethodGet)
+
+	// Reminders
+	protected.HandleFunc("/authService/api/v1/reminders", proxy.GetReminders).Methods(http.MethodGet)
+	protected.HandleFunc("/authService/api/v1/reminders", proxy.CreateReminder).Methods(http.MethodPost)
+	protected.HandleFunc("/authService/api/v1/reminders", proxy.UpdateReminder).Methods(http.MethodPut)
+	protected.HandleFunc("/authService/api/v1/reminders/{reminder_id}", proxy.GetReminder).Methods(http.MethodGet)
+	protected.HandleFunc("/authService/api/v1/reminders/{reminder_id}", proxy.DeleteReminder).Methods(http.MethodDelete)
+
+	// Notifications
+	protected.HandleFunc("/authService/api/v1/notifications", proxy.GetNotifications).Methods(http.MethodGet)
+	protected.HandleFunc("/authService/api/v1/notifications", proxy.DeleteAllNotifications).Methods(http.MethodDelete)
+	protected.HandleFunc("/authService/api/v1/notifications/unread-count", proxy.GetUnreadNotificationCount).Methods(http.MethodGet)
+	protected.HandleFunc("/authService/api/v1/notifications/read-all", proxy.MarkAllNotificationsAsRead).Methods(http.MethodPost)
+	protected.HandleFunc("/authService/api/v1/notifications/{notification_id}/read", proxy.MarkNotificationAsRead).Methods(http.MethodPost)
 
 	log.Println("Server started on http://localhost:8081")
 

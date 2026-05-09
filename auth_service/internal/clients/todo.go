@@ -23,14 +23,14 @@ func NewTodoClient(baseURL string) *TodoClient {
 	}
 }
 
-type todoServiceError struct {
-	Status  int    `json:"status"`
-	Error   string `json:"error"`
-	Message string `json:"message"`
+type TodoServiceError struct {
+	Status       int    `json:"status"`
+	ErrorMessage string `json:"error"`
+	Message      string `json:"message"`
 }
 
-func (e *todoServiceError) Err() error {
-	return fmt.Errorf("todo service %d %s: %s", e.Status, e.Error, e.Message)
+func (e TodoServiceError) Error() string {
+	return fmt.Sprintf("todo service %d %s: %s", e.Status, e.ErrorMessage, e.Message)
 }
 
 func (c *TodoClient) do(req *http.Request, out any) error {
@@ -41,10 +41,10 @@ func (c *TodoClient) do(req *http.Request, out any) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		var svcErr todoServiceError
+		var svcErr TodoServiceError
 		svcErr.Status = resp.StatusCode
 		_ = json.NewDecoder(resp.Body).Decode(&svcErr)
-		return svcErr.Err()
+		return svcErr
 	}
 
 	if out != nil {

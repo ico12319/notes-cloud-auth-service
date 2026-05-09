@@ -30,6 +30,9 @@ const (
 	ErrInvalidAuthCode               = "INVALID_AUTH_CODE"
 	ErrFailedToLoginWithOIDCProvider = "FAILED_TO_LOGIN_WITH_OIDC_PROVIDER"
 	ErrFailedToValidateIDToken       = "INVALID_ID_TOKEN"
+
+	ErrUnauthorized       = "UNAUTHORIZED"
+	ErrRemoteServiceError = "REMOTE_SERVICE_ERROR"
 )
 
 type ErrorResponse struct {
