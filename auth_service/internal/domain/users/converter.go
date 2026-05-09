@@ -22,31 +22,34 @@ func (*converter) ToEntity(user *models.User) (*Entity, error) {
 	}
 
 	return &Entity{
-		ID:           stringifiedID,
-		DisplayName:  user.Name,
-		Email:        user.Email,
-		PasswordHash: user.PasswordHash,
-		CreatedAt:    user.CreatedAt,
+		ID:            stringifiedID,
+		DisplayName:   user.Name,
+		Email:         user.Email,
+		PasswordHash:  user.PasswordHash,
+		CreatedAt:     user.CreatedAt,
+		EmailVerified: user.EmailVerified,
 	}, nil
 }
 
 func (*converter) ToModel(entity *Entity) *models.User {
 	return &models.User{
-		ID:           entity.ID.String(),
-		Name:         entity.DisplayName,
-		Email:        entity.Email,
-		CreatedAt:    entity.CreatedAt,
-		PasswordHash: entity.PasswordHash,
-		UpdatedAt:    util.NullTimeToPtr(entity.UpdatedAt),
+		ID:            entity.ID.String(),
+		Name:          entity.DisplayName,
+		Email:         entity.Email,
+		CreatedAt:     entity.CreatedAt,
+		PasswordHash:  entity.PasswordHash,
+		UpdatedAt:     util.NullTimeToPtr(entity.UpdatedAt),
+		EmailVerified: entity.EmailVerified,
 	}
 }
 
 func (*converter) ToUserResponse(user *models.User) *UserResponse {
 	return &UserResponse{
-		ID:          user.ID,
-		DisplayName: user.Name,
-		CreatedAt:   user.CreatedAt,
-		Email:       user.Email,
-		UpdatedAt:   user.UpdatedAt,
+		ID:            user.ID,
+		DisplayName:   user.Name,
+		CreatedAt:     user.CreatedAt,
+		Email:         user.Email,
+		UpdatedAt:     user.UpdatedAt,
+		EmailVerified: user.EmailVerified,
 	}
 }

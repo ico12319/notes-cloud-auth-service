@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/api_errors"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/database"
 	http_helpers "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/http"
@@ -68,6 +69,11 @@ func (h *handler) Login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if api_errors.IsWrongLoginCredentialsError(err) {
 			http_helpers.WriteErrorResponse(w, http.StatusUnauthorized, http_helpers.ErrCodeInvalidLoginCredentials, err.Error())
+			return
+		}
+		if api_errors.IsEmailNotVerified(err) {
+			http_helpers.WriteErrorResponse(w, http.StatusForbidden, http_helpers.ErrEmailNotVerified,
+				fmt.Sprintf("email %s is not verified", loginRequest.Email))
 			return
 		}
 

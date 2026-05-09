@@ -3,6 +3,7 @@ package oidc
 import (
 	"context"
 	"fmt"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/api_errors"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/database"
 	http_helpers "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/http"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/models"
@@ -29,7 +30,7 @@ type userAuthInfoExtractor interface {
 }
 
 type userResolver interface {
-	ResolveUser(ctx context.Context, userAuthInfo *models.UserAuthInfo) (*models.User, error)
+	FindOrCreateByOAuthIdentity(ctx context.Context, userAuthInfo *models.UserAuthInfo) (*models.User, error)
 }
 
 type tokenBundleIssuer interface {
@@ -152,8 +153,14 @@ func (h *handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	ctx = database.SaveToContext(ctx, tx)
 
-	resolvedUser, err := h.userResolver.ResolveUser(ctx, userAuthInfo)
+	resolvedUser, err := h.userResolver.FindOrCreateByOAuthIdentity(ctx, userAuthInfo)
 	if err != nil {
+		if api_errors.IsEmailAlreadyExist(err) {
+			http_helpers.WriteErrorResponse(w, http.StatusConflict, http_helpers.ErrCodeEmailAlreadyExists, fmt.Sprintf("email %s already exists",
+				userAuthInfo.Email))
+			return
+		}
+
 		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
 		return
 	}

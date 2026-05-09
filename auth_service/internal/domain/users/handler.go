@@ -2,7 +2,9 @@ package users
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/api_errors"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/database"
 	http_helpers "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/http"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/middleware"
@@ -18,8 +20,9 @@ type structValidator interface {
 }
 
 type userService interface {
-	Create(ctx context.Context, request *request_models.RegisterRequest) (*models.User, error)
+	Create(ctx context.Context, user *models.User, password *string) (*models.User, error)
 	FindByID(ctx context.Context, id string) (*models.User, error)
+	VerifyUser(ctx context.Context, verificationCode string) (*models.User, error)
 }
 
 type userResponseConverter interface {
@@ -31,19 +34,35 @@ type passwordValidator interface {
 }
 
 type UserResponse struct {
-	ID          string     `json:"id"`
-	DisplayName string     `json:"displayName"`
-	Email       string     `json:"email"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	UpdatedAt   *time.Time `json:"updatedAt,omitempty"`
+	ID            string     `json:"id"`
+	DisplayName   string     `json:"displayName"`
+	Email         string     `json:"email"`
+	EmailVerified bool       `json:"emailVerified"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	UpdatedAt     *time.Time `json:"updatedAt,omitempty"`
+}
+
+type verificationEmailSender interface {
+	SendVerificationEmail(ctx context.Context, to, code string) error
+}
+
+type emailVerificationCodeGenerator interface {
+	GenerateRandomString(length int) (string, error)
+}
+
+type emailVerificationTokenService interface {
+	Create(ctx context.Context, verificationCode, userID string) (*models.EmailVerificationToken, error)
 }
 
 type handler struct {
-	transact              database.Transactioner
-	structValidator       structValidator
-	userService           userService
-	userResponseConverter userResponseConverter
-	passwordValidator     passwordValidator
+	transact                       database.Transactioner
+	structValidator                structValidator
+	userService                    userService
+	userResponseConverter          userResponseConverter
+	passwordValidator              passwordValidator
+	verificationEmailSender        verificationEmailSender
+	emailVerificationCodeGenerator emailVerificationCodeGenerator
+	emailVerificationTokenService  emailVerificationTokenService
 }
 
 func NewHandler(
@@ -51,13 +70,19 @@ func NewHandler(
 	structValidator structValidator,
 	userService userService,
 	userResponseConverter userResponseConverter,
-	passwordValidator passwordValidator) *handler {
+	passwordValidator passwordValidator,
+	verificationEmailSender verificationEmailSender,
+	emailVerificationCodeGenerator emailVerificationCodeGenerator,
+	emailVerificationTokenService emailVerificationTokenService) *handler {
 	return &handler{
-		transact:              transact,
-		structValidator:       structValidator,
-		userService:           userService,
-		userResponseConverter: userResponseConverter,
-		passwordValidator:     passwordValidator,
+		transact:                       transact,
+		structValidator:                structValidator,
+		userService:                    userService,
+		userResponseConverter:          userResponseConverter,
+		passwordValidator:              passwordValidator,
+		verificationEmailSender:        verificationEmailSender,
+		emailVerificationCodeGenerator: emailVerificationCodeGenerator,
+		emailVerificationTokenService:  emailVerificationTokenService,
 	}
 }
 
@@ -93,9 +118,12 @@ func (h *handler) Register(w http.ResponseWriter, r *http.Request) {
 
 	ctx = database.SaveToContext(ctx, tx)
 
-	registeredUser, err := h.userService.Create(ctx, &request)
+	registeredUser, err := h.userService.Create(ctx, &models.User{
+		Name:  request.Name,
+		Email: request.Email,
+	}, request.Password)
 	if err != nil {
-		if database.IsUniqueViolation(err) {
+		if api_errors.IsEmailAlreadyExist(err) {
 			http_helpers.WriteErrorResponse(w, http.StatusConflict, http_helpers.ErrCodeEmailAlreadyExists,
 				fmt.Sprintf("user with email %s already exists", request.Email))
 
@@ -106,13 +134,34 @@ func (h *handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("user with id %s and email %s successfullly registered but email is not yet verified", registeredUser.ID, registeredUser.Email)
+	log.Printf("sending verification email to user's email %s", registeredUser.Email)
+
+	emailVerificationCode, err := h.emailVerificationCodeGenerator.GenerateRandomString(32)
+	if err != nil {
+		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
+		return
+	}
+
+	if _, err := h.emailVerificationTokenService.Create(ctx, emailVerificationCode, registeredUser.ID); err != nil {
+		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
+		return
+	}
+
 	if err := tx.Commit(); err != nil {
 		log.Printf("failed to commit transaction during user registration %s", err.Error())
 		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeTransactionCommitFailed, err.Error())
 		return
 	}
 
-	log.Printf("user with id %s and email %s successfullly registered", registeredUser.ID, registeredUser.Email)
+	go func() {
+		childContext, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 30*time.Second)
+		defer cancel()
+
+		if err := h.verificationEmailSender.SendVerificationEmail(childContext, registeredUser.Email, emailVerificationCode); err != nil {
+			log.Printf("failed to send verification email to email %s: %s", registeredUser.Email, err.Error())
+		}
+	}()
 
 	http_helpers.WriteSuccessResponse(w, http.StatusCreated, h.userResponseConverter.ToUserResponse(registeredUser))
 }
@@ -156,4 +205,41 @@ func (h *handler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http_helpers.WriteSuccessResponse(w, http.StatusOK, h.userResponseConverter.ToUserResponse(user))
+}
+
+func (h *handler) Verify(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+
+	var emailVerificationRequest request_models.EmailVerificationRequest
+	if err := http_helpers.DecodeRequestBody(w, r, &emailVerificationRequest); err != nil {
+		return
+	}
+
+	tx, err := h.transact.BeginContext(ctx)
+	if err != nil {
+		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeTransactionBeginFailed, err.Error())
+		return
+	}
+	defer h.transact.RollbackUnlessCommitted(ctx, tx)
+
+	ctx = database.SaveToContext(ctx, tx)
+
+	verifiedUser, err := h.userService.VerifyUser(ctx, emailVerificationRequest.VerificationCode)
+	if err != nil {
+		if errors.Is(err, ErrInvalidVerificationCode) {
+			http_helpers.WriteErrorResponse(w, http.StatusBadRequest, http_helpers.ErrInvalidVerificationCode, "invalid verification code")
+			return
+		}
+
+		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeTransactionCommitFailed, err.Error())
+		return
+	}
+
+	http_helpers.WriteSuccessResponse(w, http.StatusOK, h.userResponseConverter.ToUserResponse(verifiedUser))
 }

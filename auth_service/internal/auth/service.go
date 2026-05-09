@@ -50,6 +50,12 @@ func (s *service) Login(ctx context.Context, request *request_models.LoginReques
 		return nil, api_errors.ErrWrongLoginCredentials
 	}
 
+	if !user.EmailVerified {
+		log.Printf("user with id %s is not verified: not verifed email %s", user.ID, user.Email)
+
+		return nil, api_errors.ErrEmailNotVerified
+	}
+
 	if err := s.passwordService.CompareHashAndPassword(*user.PasswordHash, request.Password); err != nil {
 		return nil, api_errors.ErrWrongLoginCredentials
 	}
