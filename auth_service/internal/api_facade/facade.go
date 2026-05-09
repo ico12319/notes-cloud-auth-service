@@ -3,6 +3,7 @@ package api_facade
 import (
 	"context"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/clients"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/email_verification_tokens"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/oauth"
 	proxy2 "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/proxy"
 
@@ -90,8 +91,15 @@ func (*apiFacade) Start() {
 	identityRepo := user_identities.NewRepository(identityConverter)
 	identityService := user_identities.NewService(identityRepo, uuidService, timeService)
 
-	userService := users.NewService(userRepo, passwordService, timeService, uuidService, identityService)
-	userHandler := users.NewHandler(transact, structValidator, userService, userConverter, passwordService)
+	emailVerificationTokenServiceConverter := email_verification_tokens.NewConverter()
+	emailVerificationTokenServiceRepository := email_verification_tokens.NewRepository(emailVerificationTokenServiceConverter)
+	emailVerificationTokenServiceService := email_verification_tokens.NewService(emailVerificationTokenServiceRepository, uuidService, timeService)
+
+	verificationEmailContentGenerator := email_verification.NewEmailContentGenerator()
+	emailSenderService := email_verification.NewService(cfg.Resend.APIKey, cfg.Resend.FromEmail, verificationEmailContentGenerator)
+
+	userService := users.NewService(userRepo, passwordService, timeService, uuidService, identityService, emailVerificationTokenServiceService)
+	userHandler := users.NewHandler(transact, structValidator, userService, userConverter, passwordService, emailSenderService, randomService, emailVerificationTokenServiceService)
 
 	refreshTokenConverter := refresh_tokens.NewConverter()
 	refreshTokenRepository := refresh_tokens.NewRepository(refreshTokenConverter)
@@ -128,15 +136,7 @@ func (*apiFacade) Start() {
 	r.HandleFunc("/authService/api/v1/login", authHandler.Login).Methods(http.MethodPost)
 	r.HandleFunc("/authService/api/v1/logout", authHandler.Logout).Methods(http.MethodPost)
 	r.HandleFunc("/authService/api/v1/refresh", authHandler.Refresh).Methods(http.MethodPost)
-
-	resendService := email_verification.NewResendService(cfg.Resend.APIKey, cfg.Resend.FromEmail, "https://spii-canary-test.proxy.beeceptor.com/ico")
-	r.HandleFunc("/authService/api/v1/send", func(w http.ResponseWriter, req *http.Request) {
-		if err := resendService.SendVerificationEmail(req.Context(), "mishoni04@abv.bg", "hgaoghaoguapifhaoyu8ry9ty9giquga"); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-	}).Methods(http.MethodGet)
+	r.HandleFunc("/authService/api/v1/email/verify", userHandler.Verify).Methods(http.MethodPost)
 
 	// Protected routes
 	protected := r.NewRoute().Subrouter()

@@ -4,46 +4,43 @@ import (
 	"context"
 	"fmt"
 	"github.com/resend/resend-go/v2"
-	"text/template"
 )
 
-type ResendService struct {
-	client      *resend.Client
-	fromAddress string
-	frontendURL string
+type verificationEmailContentGenerator interface {
+	GenerateVerificationEmailContent(code string) string
 }
 
-func NewResendService(apiKey, fromAddress, frontendURL string) *ResendService {
-	return &ResendService{
-		client:      resend.NewClient(apiKey),
-		fromAddress: fromAddress,
-		frontendURL: frontendURL,
+type service struct {
+	client                            *resend.Client
+	fromAddress                       string
+	verificationEmailContentGenerator verificationEmailContentGenerator
+}
+
+func NewService(
+	apiKey,
+	fromAddress string,
+	verificationEmailContentGenerator verificationEmailContentGenerator,
+) *service {
+	return &service{
+		client:                            resend.NewClient(apiKey),
+		fromAddress:                       fromAddress,
+		verificationEmailContentGenerator: verificationEmailContentGenerator,
 	}
 }
 
-func (s *ResendService) SendVerificationEmail(
+func (s *service) SendVerificationEmail(
 	ctx context.Context,
 	to string,
-	token string,
+	code string,
 ) error {
-	verifyURL := fmt.Sprintf("%s/verify-email?token=%s", s.frontendURL, template.URLQueryEscaper(token))
-
-	htmlBody := fmt.Sprintf(`
-		<h2>Verify your email</h2>
-		<p>Click the link below to verify your email address:</p>
-		<p><a href="%s">Verify email</a></p>
-		<p>If you did not create this account, you can ignore this email.</p>
-	`, verifyURL)
-
 	params := &resend.SendEmailRequest{
 		From:    s.fromAddress,
 		To:      []string{to},
-		Subject: "Verify your email address",
-		Html:    htmlBody,
+		Subject: "Email verification",
+		Html:    s.verificationEmailContentGenerator.GenerateVerificationEmailContent(code),
 	}
 
-	_, err := s.client.Emails.SendWithContext(ctx, params)
-	if err != nil {
+	if _, err := s.client.Emails.SendWithContext(ctx, params); err != nil {
 		return fmt.Errorf("send verification email: %w", err)
 	}
 
