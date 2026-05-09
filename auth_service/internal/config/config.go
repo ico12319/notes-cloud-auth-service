@@ -33,6 +33,11 @@ type Cookie struct {
 	Secret string `json:"secret"`
 }
 
+type Resend struct {
+	APIKey    string `json:"apiKey"`
+	FromEmail string `json:"fromEmail"`
+}
+
 // OIDCProviderConfig describes a single third-party auth provider.
 // Despite the "OIDC" name, this is also used for plain OAuth2 providers
 // (e.g. GitHub) — IssuerURL is just left empty for those.
@@ -51,6 +56,7 @@ type Config struct {
 	AccessToken   AccessToken                   `json:"accessToken"`
 	RefreshToken  RefreshToken                  `json:"refreshToken"`
 	Cookie        Cookie                        `json:"cookie"`
+	Resend        Resend                        `json:"resend"`
 	OIDCProviders map[string]OIDCProviderConfig `json:"oidcProviders"`
 }
 
@@ -129,6 +135,12 @@ func Load() (*Config, error) {
 	}
 	if v := getEnv("COOKIE_SECRET"); v != "" {
 		cfg.Cookie.Secret = v
+	}
+	if v := getEnv("RESEND_API_KEY"); v != "" {
+		cfg.Resend.APIKey = v
+	}
+	if v := getEnv("RESEND_FROM_EMAIL"); v != "" {
+		cfg.Resend.FromEmail = v
 	}
 
 	if err := loadOIDCProvidersFromEnv(cfg); err != nil {
