@@ -22,6 +22,7 @@ type structValidator interface {
 type userService interface {
 	Create(ctx context.Context, user *models.User, password *string) (*models.User, error)
 	FindByID(ctx context.Context, id string) (*models.User, error)
+	FindByEmail(ctx context.Context, email string) (*models.User, error)
 	VerifyUser(ctx context.Context, verificationCode string) (*models.User, error)
 }
 
@@ -52,6 +53,7 @@ type emailVerificationCodeGenerator interface {
 
 type emailVerificationTokenService interface {
 	Create(ctx context.Context, verificationCode, userID string) (*models.EmailVerificationToken, error)
+	DeleteByUserID(ctx context.Context, userID string) error
 }
 
 type handler struct {
@@ -242,4 +244,77 @@ func (h *handler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http_helpers.WriteSuccessResponse(w, http.StatusOK, h.userResponseConverter.ToUserResponse(verifiedUser))
+}
+
+func (h *handler) Resend(w http.ResponseWriter, r *http.Request) {
+	var emailResendRequest request_models.VerificationEmailResendRequest
+	if err := http_helpers.DecodeRequestBody(w, r, &emailResendRequest); err != nil {
+		return
+	}
+
+	if emailResendRequest.Email == "" {
+		http_helpers.WriteErrorResponse(w, http.StatusBadRequest, http_helpers.ErrCodeInvalidRequestBody,
+			fmt.Sprintf("email can't be empty"))
+		return
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 30*time.Second)
+		defer cancel()
+
+		if err := h.handleResend(ctx, emailResendRequest.Email); err != nil {
+			log.Printf("failed to resend verification code to email %s: %s", emailResendRequest.Email, err.Error())
+		}
+	}()
+
+	http_helpers.WriteSuccessResponse(w, http.StatusAccepted, map[string]string{
+		"message": "If an account with that email exists and is unverified, a new code has been sent.",
+	})
+
+}
+
+func (h *handler) handleResend(ctx context.Context, email string) error {
+	tx, err := h.transact.BeginContext(ctx)
+	if err != nil {
+		return err
+	}
+	defer h.transact.RollbackUnlessCommitted(ctx, tx)
+
+	ctx = database.SaveToContext(ctx, tx)
+
+	user, err := h.userService.FindByEmail(ctx, email)
+	if err != nil {
+		if api_errors.IsUserNotFoundError(err) {
+			log.Printf("user with email %s does not exist, won't try to resend verification code...", email)
+
+			return nil
+		}
+
+		return err
+	}
+
+	if user.EmailVerified {
+		log.Printf("user with email %s is already verified, won't try to resend verification code..", email)
+
+		return nil
+	}
+
+	if err := h.emailVerificationTokenService.DeleteByUserID(ctx, user.ID); err != nil {
+		return err
+	}
+
+	emailVerificationCode, err := h.emailVerificationCodeGenerator.GenerateRandomString(32)
+	if err != nil {
+		return err
+	}
+
+	if _, err := h.emailVerificationTokenService.Create(ctx, emailVerificationCode, user.ID); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	return h.verificationEmailSender.SendVerificationEmail(ctx, email, emailVerificationCode)
 }

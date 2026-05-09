@@ -137,6 +137,7 @@ func (*apiFacade) Start() {
 	r.HandleFunc("/authService/api/v1/logout", authHandler.Logout).Methods(http.MethodPost)
 	r.HandleFunc("/authService/api/v1/refresh", authHandler.Refresh).Methods(http.MethodPost)
 	r.HandleFunc("/authService/api/v1/email/verify", userHandler.Verify).Methods(http.MethodPost)
+	r.HandleFunc("/authService/api/v1/email/resend-verification", userHandler.Resend).Methods(http.MethodPost)
 
 	// Protected routes
 	protected := r.NewRoute().Subrouter()
