@@ -23,14 +23,14 @@ func NewReminderNotificationClient(baseURL string) *ReminderNotificationClient {
 	}
 }
 
-type reminderServiceError struct {
-	Status  int    `json:"status"`
-	Error   string `json:"error"`
-	Message string `json:"message"`
+type ReminderServiceError struct {
+	Status       int    `json:"status"`
+	ErrorMessage string `json:"error"`
+	Message      string `json:"message"`
 }
 
-func (e *reminderServiceError) Err() error {
-	return fmt.Errorf("reminder service %d %s: %s", e.Status, e.Error, e.Message)
+func (e ReminderServiceError) Error() string {
+	return fmt.Sprintf("reminder service %d %s: %s", e.Status, e.ErrorMessage, e.Message)
 }
 
 func (c *ReminderNotificationClient) do(req *http.Request, out any) error {
@@ -41,10 +41,10 @@ func (c *ReminderNotificationClient) do(req *http.Request, out any) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		var svcErr reminderServiceError
+		var svcErr ReminderServiceError
 		svcErr.Status = resp.StatusCode
 		_ = json.NewDecoder(resp.Body).Decode(&svcErr)
-		return svcErr.Err()
+		return svcErr
 	}
 
 	if out != nil {
