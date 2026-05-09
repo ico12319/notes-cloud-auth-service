@@ -24,13 +24,17 @@ func NewTodoClient(baseURL string) *TodoClient {
 }
 
 type TodoServiceError struct {
-	Status       int    `json:"status"`
-	ErrorMessage string `json:"error"`
-	Message      string `json:"message"`
+	Status    int    `json:"status"`
+	Message   string `json:"message"`
+	Timestamp string `json:"timestamp"`
 }
 
 func (e TodoServiceError) Error() string {
-	return fmt.Sprintf("todo service %d %s: %s", e.Status, e.ErrorMessage, e.Message)
+	if e.Message != "" {
+		return fmt.Sprintf("todo service %d: %s", e.Status, e.Message)
+	}
+
+	return fmt.Sprintf("todo service returned status %d", e.Status)
 }
 
 func (c *TodoClient) do(req *http.Request, out any) error {
@@ -43,12 +47,22 @@ func (c *TodoClient) do(req *http.Request, out any) error {
 	if resp.StatusCode >= 400 {
 		var svcErr TodoServiceError
 		svcErr.Status = resp.StatusCode
-		_ = json.NewDecoder(resp.Body).Decode(&svcErr)
+
+		if err := json.NewDecoder(resp.Body).Decode(&svcErr); err != nil {
+			return fmt.Errorf("todo service returned status %d", resp.StatusCode)
+		}
+
+		if svcErr.Status == 0 {
+			svcErr.Status = resp.StatusCode
+		}
+
 		return svcErr
 	}
 
 	if out != nil {
-		return json.NewDecoder(resp.Body).Decode(out)
+		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+			return fmt.Errorf("failed to decode todo service response: %w", err)
+		}
 	}
 
 	return nil
