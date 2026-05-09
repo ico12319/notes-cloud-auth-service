@@ -15,6 +15,7 @@ import (
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/token_bundle"
 	user_identities "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/user_identities"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/users"
+	email_verification "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/email-verification"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/encoder"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/middleware"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/oidc"
@@ -119,6 +120,15 @@ func (*apiFacade) Start() {
 	r.HandleFunc("/authService/api/v1/login", authHandler.Login).Methods(http.MethodPost)
 	r.HandleFunc("/authService/api/v1/logout", authHandler.Logout).Methods(http.MethodPost)
 	r.HandleFunc("/authService/api/v1/refresh", authHandler.Refresh).Methods(http.MethodPost)
+
+	resendService := email_verification.NewResendService(cfg.Resend.APIKey, cfg.Resend.FromEmail, "https://spii-canary-test.proxy.beeceptor.com/ico")
+	r.HandleFunc("/authService/api/v1/send", func(w http.ResponseWriter, req *http.Request) {
+		if err := resendService.SendVerificationEmail(req.Context(), "josuaa12319@gmail.com", "hgaoghaoguapifhaoyu8ry9ty9giquga"); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}).Methods(http.MethodGet)
 
 	// Protected routes
 	protected := r.NewRoute().Subrouter()
