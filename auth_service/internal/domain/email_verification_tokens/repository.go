@@ -60,14 +60,24 @@ func (r *repository) GetByTokenHash(ctx context.Context, tokenHash string) (*mod
 }
 
 func (r *repository) Delete(ctx context.Context, id string) error {
+	query := `DELETE FROM auth_service.email_verification_tokens WHERE id = $1`
+
+	return r.delete(ctx, query, id)
+}
+
+func (r *repository) DeleteByUserID(ctx context.Context, userID string) error {
+	query := `DELETE FROM auth_service.email_verification_tokens WHERE user_id = $1`
+
+	return r.delete(ctx, query, userID)
+}
+
+func (r *repository) delete(ctx context.Context, query string, key string) error {
 	persist, err := database.FromCtx(ctx)
 	if err != nil {
 		return err
 	}
 
-	query := `DELETE FROM auth_service.email_verification_tokens WHERE id = $1`
-
-	if _, err = persist.ExecContext(ctx, query, id); err != nil {
+	if _, err = persist.ExecContext(ctx, query, key); err != nil {
 		return err
 	}
 

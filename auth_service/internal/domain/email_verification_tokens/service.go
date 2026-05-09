@@ -12,6 +12,7 @@ type emailVerificationRepository interface {
 	Create(ctx context.Context, token *models.EmailVerificationToken) error
 	GetByTokenHash(ctx context.Context, tokenHash string) (*models.EmailVerificationToken, error)
 	Delete(ctx context.Context, id string) error
+	DeleteByUserID(ctx context.Context, userID string) error
 }
 
 type uuidGenerator interface {
@@ -61,6 +62,10 @@ func (s *service) FindToken(ctx context.Context, token string) (*models.EmailVer
 
 func (s *service) Delete(ctx context.Context, id string) error {
 	return s.emailVerificationRepository.Delete(ctx, id)
+}
+
+func (s *service) DeleteByUserID(ctx context.Context, userID string) error {
+	return s.emailVerificationRepository.DeleteByUserID(ctx, userID)
 }
 
 func hashToken(rawToken string) string {
