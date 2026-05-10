@@ -55,7 +55,7 @@ func (cs *CookieService) SetOAuthCookie(w http.ResponseWriter, session OAuthSess
 	http.SetCookie(w, &http.Cookie{
 		Name:     "oauth_session",
 		Value:    encoded,
-		Path:     "/authService/api/v1/auth", // covers both /google/login and /google/callback (and future /github/*)
+		Path:     "/", // covers both /google/login and /google/callback (and future /github/*)
 		MaxAge:   600,
 		HttpOnly: true,
 		Secure:   cs.secureCookies, // false in dev, true in prod
@@ -99,7 +99,7 @@ func (cs *CookieService) ClearOAuthCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "oauth_session",
 		Value:    "",
-		Path:     "/authService/api/v1/auth/google",
+		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   true,
