@@ -3,8 +3,8 @@ package middleware
 import (
 	"context"
 	"fmt"
-	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/access_token"
 	http_helpers "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/http"
+	"github.com/notes-in-the-cloud/notes-cloud-jwt-utils/accesstoken"
 	"net/http"
 	"strings"
 )
@@ -14,7 +14,7 @@ type userIDKey string
 const UserIDKey userIDKey = "userIDKey"
 
 type jwtValidator interface {
-	ValidateAccessToken(rawToken string) (*access_token.AccessTokenClaims, error)
+	ValidateAccessToken(rawToken string) (*accesstoken.Claims, error)
 }
 
 func AuthMiddleware(jwtValidator jwtValidator) func(http.Handler) http.Handler {
