@@ -30,13 +30,6 @@ type Resend struct {
 	FromEmail string `json:"fromEmail"`
 }
 
-type Services struct {
-	NotesServiceURL    string `json:"notesServiceURL"`
-	TodoServiceURL     string `json:"todoServiceURL"`
-	ReminderServiceURL string `json:"reminderServiceURL"`
-	SharingServiceURL  string `json:"sharingServiceURL"`
-}
-
 // OIDCProviderConfig describes a single third-party auth provider.
 // Despite the "OIDC" name, this is also used for plain OAuth2 providers
 // (e.g. GitHub) — IssuerURL is just left empty for those.
@@ -55,7 +48,6 @@ type Config struct {
 	RefreshToken  RefreshToken                  `json:"refreshToken"`
 	Cookie        Cookie                        `json:"cookie"`
 	Resend        Resend                        `json:"resend"`
-	Services      Services                      `json:"services"`
 	OIDCProviders map[string]OIDCProviderConfig `json:"oidcProviders"`
 }
 
@@ -124,18 +116,6 @@ func Load() (*Config, error) {
 	}
 	if v := getEnv("RESEND_FROM_EMAIL"); v != "" {
 		cfg.Resend.FromEmail = v
-	}
-	if v := getEnv("NOTES_SERVICE_URL"); v != "" {
-		cfg.Services.NotesServiceURL = v
-	}
-	if v := getEnv("TODO_SERVICE_URL"); v != "" {
-		cfg.Services.TodoServiceURL = v
-	}
-	if v := getEnv("REMINDER_SERVICE_URL"); v != "" {
-		cfg.Services.ReminderServiceURL = v
-	}
-	if v := getEnv("SHARING_SERVICE_URL"); v != "" {
-		cfg.Services.SharingServiceURL = v
 	}
 
 	if err := loadOIDCProvidersFromEnv(cfg); err != nil {
