@@ -23,7 +23,7 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
-	github.com/notes-in-the-cloud/notes-cloud-jwt-utils v0.0.0-20260510152848-82e56de44f4a // indirect
+	github.com/notes-in-the-cloud/notes-cloud-jwt-utils v0.0.0-20260510171725-265efd891cbb // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/resend/resend-go/v2 v2.28.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
