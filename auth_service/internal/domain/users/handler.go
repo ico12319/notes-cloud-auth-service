@@ -7,9 +7,9 @@ import (
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/api_errors"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/database"
 	http_helpers "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/http"
-	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/middleware"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/models"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/request_models"
+	"github.com/notes-in-the-cloud/notes-cloud-jwt-utils/accesstoken"
 	"log"
 	"net/http"
 	"time"
@@ -174,10 +174,8 @@ func (h *handler) Me(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 
-	userIDValue := ctx.Value(middleware.UserIDKey)
-	userID, ok := userIDValue.(string)
-
-	if !ok || userID == "" {
+	userID, err := accesstoken.UserIDFromContext(ctx)
+	if err != nil {
 		http_helpers.WriteErrorResponse(w, http.StatusUnauthorized,
 			http_helpers.ErrCodeUnauthorized, "missing user ID")
 		return
