@@ -34,6 +34,7 @@ const (
 	ErrUnauthorized            = "UNAUTHORIZED"
 	ErrInvalidVerificationCode = "INVALID_VERIFICATION_CODE"
 	ErrEmailNotVerified        = "EMAIL_NOT_VERIFIED"
+	ErrRemoteServiceError      = "REMOTE_SERVICE_ERROR"
 )
 
 type ErrorResponse struct {
