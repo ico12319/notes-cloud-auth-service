@@ -51,7 +51,7 @@ func (h *handler) Todo(w http.ResponseWriter, r *http.Request) {
 		contextWithUserMetadata.userID, todoID)
 	if err != nil {
 		if todoErr, ok := errors.AsType[clients.TodoServiceError](err); ok {
-			http_helpers.WriteErrorResponse(w, todoErr.Status, todoErr.ErrorMessage, todoErr.Message)
+			http_helpers.WriteErrorResponse(w, todoErr.Status, http_helpers.ErrRemoteServiceError, todoErr.Message)
 			return
 		}
 
@@ -83,7 +83,7 @@ func (h *handler) CreateTodo(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("zakvo gurmish e batal %s", err.Error())
 		if todoErr, ok := errors.AsType[clients.TodoServiceError](err); ok {
-			http_helpers.WriteErrorResponse(w, todoErr.Status, todoErr.ErrorMessage, todoErr.Message)
+			http_helpers.WriteErrorResponse(w, todoErr.Status, http_helpers.ErrRemoteServiceError, todoErr.Message)
 			return
 		}
 
@@ -117,7 +117,7 @@ func (h *handler) UpdateTodo(w http.ResponseWriter, r *http.Request) {
 		contextWithUserMetadata.userID, todoID, req)
 	if err != nil {
 		if todoErr, ok := errors.AsType[clients.TodoServiceError](err); ok {
-			http_helpers.WriteErrorResponse(w, todoErr.Status, todoErr.ErrorMessage, todoErr.Message)
+			http_helpers.WriteErrorResponse(w, todoErr.Status, http_helpers.ErrRemoteServiceError, todoErr.Message)
 			return
 		}
 
@@ -144,7 +144,7 @@ func (h *handler) DeleteTodo(w http.ResponseWriter, r *http.Request) {
 		contextWithUserMetadata.userID, todoID)
 	if err != nil {
 		if todoErr, ok := errors.AsType[clients.TodoServiceError](err); ok {
-			http_helpers.WriteErrorResponse(w, todoErr.Status, todoErr.ErrorMessage, todoErr.Message)
+			http_helpers.WriteErrorResponse(w, todoErr.Status, http_helpers.ErrRemoteServiceError, todoErr.Message)
 			return
 		}
 
@@ -168,7 +168,7 @@ func (h *handler) GetTodos(w http.ResponseWriter, r *http.Request) {
 		contextWithUserMetadata.userID)
 	if err != nil {
 		if todoErr, ok := errors.AsType[clients.TodoServiceError](err); ok {
-			http_helpers.WriteErrorResponse(w, todoErr.Status, todoErr.ErrorMessage, todoErr.Message)
+			http_helpers.WriteErrorResponse(w, todoErr.Status, http_helpers.ErrRemoteServiceError, todoErr.Message)
 			return
 		}
 
@@ -199,7 +199,7 @@ func (h *handler) CreateTodoList(w http.ResponseWriter, r *http.Request) {
 		contextWithUserMetadata.userID, req)
 	if err != nil {
 		if todoErr, ok := errors.AsType[clients.TodoServiceError](err); ok {
-			http_helpers.WriteErrorResponse(w, todoErr.Status, todoErr.ErrorMessage, todoErr.Message)
+			http_helpers.WriteErrorResponse(w, todoErr.Status, http_helpers.ErrRemoteServiceError, todoErr.Message)
 			return
 		}
 
@@ -223,7 +223,7 @@ func (h *handler) GetTodoLists(w http.ResponseWriter, r *http.Request) {
 		contextWithUserMetadata.userID)
 	if err != nil {
 		if todoErr, ok := errors.AsType[clients.TodoServiceError](err); ok {
-			http_helpers.WriteErrorResponse(w, todoErr.Status, todoErr.ErrorMessage, todoErr.Message)
+			http_helpers.WriteErrorResponse(w, todoErr.Status, http_helpers.ErrRemoteServiceError, todoErr.Message)
 			return
 		}
 
@@ -250,7 +250,7 @@ func (h *handler) GetTodoList(w http.ResponseWriter, r *http.Request) {
 		contextWithUserMetadata.userID, listID)
 	if err != nil {
 		if todoErr, ok := errors.AsType[clients.TodoServiceError](err); ok {
-			http_helpers.WriteErrorResponse(w, todoErr.Status, todoErr.ErrorMessage, todoErr.Message)
+			http_helpers.WriteErrorResponse(w, todoErr.Status, http_helpers.ErrRemoteServiceError, todoErr.Message)
 			return
 		}
 
@@ -284,7 +284,7 @@ func (h *handler) UpdateTodoList(w http.ResponseWriter, r *http.Request) {
 		contextWithUserMetadata.userID, listID, req)
 	if err != nil {
 		if todoErr, ok := errors.AsType[clients.TodoServiceError](err); ok {
-			http_helpers.WriteErrorResponse(w, todoErr.Status, todoErr.ErrorMessage, todoErr.Message)
+			http_helpers.WriteErrorResponse(w, todoErr.Status, http_helpers.ErrRemoteServiceError, todoErr.Message)
 			return
 		}
 
@@ -311,7 +311,7 @@ func (h *handler) DeleteTodoList(w http.ResponseWriter, r *http.Request) {
 		contextWithUserMetadata.userID, listID)
 	if err != nil {
 		if todoErr, ok := errors.AsType[clients.TodoServiceError](err); ok {
-			http_helpers.WriteErrorResponse(w, todoErr.Status, todoErr.ErrorMessage, todoErr.Message)
+			http_helpers.WriteErrorResponse(w, todoErr.Status, http_helpers.ErrRemoteServiceError, todoErr.Message)
 			return
 		}
 
