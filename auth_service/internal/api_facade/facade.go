@@ -136,7 +136,7 @@ func (*apiFacade) Start() {
 	r.HandleFunc("/authService/api/v1/refresh", authHandler.Refresh).Methods(http.MethodPost)
 	r.HandleFunc("/authService/api/v1/email/verify", userHandler.Verify).Methods(http.MethodPost)
 	r.HandleFunc("/authService/api/v1/email/resend-verification", userHandler.Resend).Methods(http.MethodPost)
-	r.HandleFunc("/authService/api/v1/me", userHandler.Me).Methods(http.MethodGet)
+	r.HandleFunc("/authService/api/v1/users/{user_id}", userHandler.User).Methods(http.MethodGet)
 
 	log.Println("Server started on http://localhost:8081")
 

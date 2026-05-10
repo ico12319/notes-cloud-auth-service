@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gorilla/mux"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/api_errors"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/database"
 	http_helpers "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/http"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/models"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/request_models"
-	"github.com/notes-in-the-cloud/notes-cloud-jwt-utils/accesstoken"
 	"log"
 	"net/http"
 	"time"
@@ -168,18 +168,13 @@ func (h *handler) Register(w http.ResponseWriter, r *http.Request) {
 	http_helpers.WriteSuccessResponse(w, http.StatusCreated, h.userResponseConverter.ToUserResponse(registeredUser))
 }
 
-func (h *handler) Me(w http.ResponseWriter, r *http.Request) {
+func (h *handler) User(w http.ResponseWriter, r *http.Request) {
 	log.Println("me endpoint hit")
 
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 
-	userID, err := accesstoken.UserIDFromContext(ctx)
-	if err != nil {
-		http_helpers.WriteErrorResponse(w, http.StatusUnauthorized,
-			http_helpers.ErrCodeUnauthorized, "missing user ID")
-		return
-	}
+	userID := mux.Vars(r)["user_id"]
 
 	tx, err := h.transact.BeginContext(ctx)
 	if err != nil {
