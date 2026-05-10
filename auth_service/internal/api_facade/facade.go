@@ -13,7 +13,6 @@ import (
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/auth"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/config"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/database"
-	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/access_token"
 	refresh_tokens "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/refresh_token"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/token_bundle"
 	user_identities "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/user_identities"
@@ -27,6 +26,7 @@ import (
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/random"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/time"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/uuid"
+	"github.com/notes-in-the-cloud/notes-cloud-jwt-utils/accesstoken"
 	"log"
 	"net/http"
 )
@@ -105,7 +105,13 @@ func (*apiFacade) Start() {
 	refreshTokenRepository := refresh_tokens.NewRepository(refreshTokenConverter)
 	refreshTokenService := refresh_tokens.NewService(refreshTokenRepository, randomService, stringEncoder, uuidService, timeService,
 		cfg.RefreshToken.Secret)
-	accessTokenService := access_token.NewService(timeService, cfg.AccessToken, jwt.SigningMethodHS256)
+
+	accessTokenConfig, err := accesstoken.LoadConfig()
+	if err != nil {
+		log.Fatalf("failed to load config for acess token: %s", err.Error())
+	}
+
+	accessTokenService := accesstoken.NewService(timeService, *accessTokenConfig, jwt.SigningMethodHS256)
 
 	tokenBundleService := token_bundle.NewService(accessTokenService, refreshTokenService, userService, timeService)
 	authService := auth.NewService(userService, tokenBundleService, passwordService)

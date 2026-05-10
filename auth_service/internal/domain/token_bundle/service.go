@@ -5,12 +5,13 @@ import (
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/api_errors"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/models"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/request_models"
+	"github.com/notes-in-the-cloud/notes-cloud-jwt-utils/accesstoken"
 	"log"
 	"time"
 )
 
 type accessTokenGenerator interface {
-	GenerateForUser(userID string) (*models.AccessToken, error)
+	GenerateForUser(userID string) (*accesstoken.Token, error)
 }
 
 type refreshTokenService interface {
