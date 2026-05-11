@@ -198,7 +198,7 @@ func (h *handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		Value:    tokenBundle.RefreshToken,
 		MaxAge:   7 * 24 * 60 * 60, // 7 days
 		HttpOnly: true,
-		Secure:   false, // false for HTTP (local dev)
+		Secure:   false,
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
 	})
