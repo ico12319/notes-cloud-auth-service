@@ -102,8 +102,10 @@ func (h *handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	session, err := h.cookieService.ReadOAuthCookie(r)
 	if err != nil {
-		log.Printf("faied to read session cookie %s", err.Error())
-		http_helpers.WriteErrorResponse(w, http.StatusBadRequest, http_helpers.ErrInvalidSessionCookie, err.Error())
+		log.Printf("failed to read session cookie %s", err.Error())
+		redirectURL := fmt.Sprintf("%s?error=invalid_session&message=%s",
+			h.frontendURL, "Invalid OAuth session. Please try again.")
+		http.Redirect(w, r, redirectURL, http.StatusFound)
 		return
 	}
 
@@ -111,34 +113,41 @@ func (h *handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	stateInURLQuery := r.URL.Query().Get("state")
 	if stateInURLQuery == "" || stateInURLQuery != session.State {
-		http_helpers.WriteErrorResponse(w, http.StatusBadRequest, http_helpers.ErrInvalidOauthState,
-			fmt.Sprintf("invalid oauth state"))
+		log.Printf("invalid oauth state: expected %s, got %s", session.State, stateInURLQuery)
+		http.Redirect(w, r, fmt.Sprintf("%s?error=invalid_state&message=%s",
+			h.frontendURL, "Invalid OAuth state. Possible CSRF attack."), http.StatusFound)
+
 		return
 	}
 
 	authCode := r.URL.Query().Get("code")
 	if authCode == "" {
-		http_helpers.WriteErrorResponse(w, http.StatusBadRequest, http_helpers.ErrInvalidAuthCode,
-			fmt.Sprintf("invalid authorization code"))
+		http.Redirect(w, r, fmt.Sprintf("%s?error=no_auth_code&message=%s",
+			h.frontendURL, "No authorization code received from provider."), http.StatusFound)
 		return
 	}
 
 	token, err := h.oidcProvider.ExchangeAuthCodeForAccessToken(ctx, authCode)
 	if err != nil {
-		http_helpers.WriteErrorResponse(w, http.StatusBadRequest, http_helpers.ErrFailedToLoginWithOIDCProvider,
-			fmt.Sprintf("failed to login with provider"))
+		log.Printf("failed to exchange auth code: %v", err)
+		http.Redirect(w, r, fmt.Sprintf("%s?error=token_exchange_failed&message=%s",
+			h.frontendURL, "Failed to authenticate with provider. Please try again."), http.StatusFound)
 		return
 	}
 
 	userAuthInfo, err := h.userAuthInfoExtractor.Extract(ctx, token, session)
 	if err != nil {
-		http_helpers.WriteErrorResponse(w, http.StatusBadRequest, http_helpers.ErrFailedToValidateIDToken, err.Error())
+		log.Printf("failed to extract user info: %v", err)
+		http.Redirect(w, r, fmt.Sprintf("%s?error=invalid_token&message=%s",
+			h.frontendURL, "Failed to validate authentication. Please try again."), http.StatusFound)
 		return
 	}
 
 	tx, err := h.transact.BeginContext(ctx)
 	if err != nil {
-		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
+		log.Printf("failed to begin transaction: %v", err)
+		http.Redirect(w, r, fmt.Sprintf("%s?error=server_error&message=%s",
+			h.frontendURL, "Server error occurred. Please try again."), http.StatusFound)
 		return
 	}
 	defer h.transact.RollbackUnlessCommitted(ctx, tx)
@@ -148,23 +157,27 @@ func (h *handler) Callback(w http.ResponseWriter, r *http.Request) {
 	resolvedUser, err := h.userResolver.FindOrCreateByOAuthIdentity(ctx, userAuthInfo)
 	if err != nil {
 		if api_errors.IsEmailAlreadyExist(err) {
-			http_helpers.WriteErrorResponse(w, http.StatusConflict, http_helpers.ErrCodeEmailAlreadyExists, fmt.Sprintf("email %s already exists",
-				userAuthInfo.Email))
+			http.Redirect(w, r, fmt.Sprintf("%s?error=email_exists&message=%s",
+				h.frontendURL, "This email is already registered with a different login method"), http.StatusFound)
 			return
 		}
 
-		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
+		redirectURL := fmt.Sprintf("%s?error=oauth_failed&message=%s",
+			h.frontendURL, "Authentication failed. Please try again.")
+		http.Redirect(w, r, redirectURL, http.StatusFound)
 		return
 	}
 
 	tokenBundle, err := h.tokenBundleIssuer.GenerateBundle(ctx, resolvedUser.ID)
 	if err != nil {
-		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
+		http.Redirect(w, r, fmt.Sprintf("%s?error=token_failed&message=%s",
+			h.frontendURL, "Failed to generate authentication token"), http.StatusFound)
 		return
 	}
 
 	if err := tx.Commit(); err != nil {
-		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
+		http.Redirect(w, r, fmt.Sprintf("%s?error=server_error&message=%s",
+			h.frontendURL, "Server error occurred. Please try again."), http.StatusFound)
 		return
 	}
 
