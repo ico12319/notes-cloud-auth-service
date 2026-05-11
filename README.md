@@ -1,30 +1,106 @@
 # Notes Cloud Auth Service
 
-A Go microservice that provides authentication, authorization, and acts as an API gateway/proxy for the Notes Cloud platform.
+A Go microservice that provides authentication and authorization for the Notes Cloud platform.
 
 ## Overview
 
-The auth-service serves two primary functions:
+The auth-service handles:
 
-1. **Authentication**: Handles user registration, login, JWT token management, and OAuth2/OIDC flows (Google, GitLab)
-2. **API Gateway/Proxy**: Secures all backend microservices by validating JWT tokens, extracting user identity, and forwarding requests with user context
+1. **User Registration & Login**: Email/password authentication with email verification
+2. **OAuth2/OIDC**: Third-party login via Google and GitLab
+3. **JWT Token Management**: Access token generation and validation
+4. **Refresh Token Rotation**: Secure token refresh with httpOnly cookies
+5. **User Management**: Profile retrieval and identity linking
 
-### How the Proxy Works
+**Important:** This service is designed to run behind the API Gateway. All client requests should go through the gateway, not directly to this service.
 
-All protected endpoints require a valid JWT token in the `Authorization` header:
+## Authentication Flow
 
+### Cookie-Based Token Strategy
+
+The service uses a **hybrid cookie approach** for security:
+
+- **Refresh Token** → httpOnly cookie (JavaScript cannot access, secure against XSS)
+- **Access Token** → Regular cookie for OAuth (JavaScript can read for API calls)
+- **Access Token** → JSON response for regular login (stored in localStorage by frontend)
+
+### Regular Login Flow
+
+**Endpoint:** `POST /authService/api/v1/login`
+
+1. Client sends credentials to gateway → gateway proxies to auth-service
+2. Auth-service validates credentials and generates TokenBundle
+3. Auth-service sets `refresh_token` httpOnly cookie
+4. Auth-service returns **only AccessToken** in JSON (not full TokenBundle)
+5. Frontend stores access token in localStorage
+6. Frontend includes access token in Authorization header for API calls
+7. Frontend includes `credentials: 'include'` to send refresh token cookie
+
+**Key Implementation:** `internal/auth/handler.go:48-100`
+
+```go
+http.SetCookie(w, &http.Cookie{
+    Name:     "refresh_token",
+    Value:    loginResponse.RefreshToken,
+    MaxAge:   7 * 24 * 60 * 60, // 7 days
+    HttpOnly: true,
+    Secure:   false, // false for HTTP (local dev), true for production
+    SameSite: http.SameSiteLaxMode,
+    Path:     "/",
+})
+http_helpers.WriteSuccessResponse(w, http.StatusOK, loginResponse.AccessToken)
 ```
-Authorization: Bearer <access_token>
-```
 
-The service:
-1. Extracts the JWT token from the `Authorization` header
-2. Validates the token signature and expiration
-3. Extracts the `user_id` from the token claims
-4. Stores the `user_id` in the request context
-5. Forwards the request to the appropriate backend service with the user identity
+### OAuth Flow (Google/GitLab)
 
-This centralizes authentication logic and allows backend services to focus on business logic without handling auth concerns.
+**Endpoints:**
+- `GET /authService/api/v1/auth/google/start`
+- `GET /authService/api/v1/auth/google/callback`
+- `GET /authService/api/v1/auth/gitlab/start`
+- `GET /authService/api/v1/auth/gitlab/callback`
+
+1. User clicks "Continue with Google" → Browser navigates to `/auth/google/start` via gateway
+2. Auth-service redirects to Google OAuth with state/nonce
+3. User authenticates with Google
+4. Google redirects back to `/auth/google/callback` via gateway
+5. Auth-service exchanges code for tokens and validates ID token
+6. Auth-service finds or creates user, linking OAuth identity
+7. Auth-service generates TokenBundle
+8. Auth-service sets **both cookies**:
+   - `refresh_token` (httpOnly, 7 days)
+   - `access_token` (readable by JS, 1 hour) — needed for frontend to read after redirect
+9. Auth-service redirects to `FRONTEND_URL`
+10. Frontend reads `access_token` cookie and saves session
+
+**Key Implementation:** `internal/oidc/handler.go:106-209`
+
+**Why OAuth sets both cookies?** Regular login is a fetch API call (can return JSON), but OAuth is a browser redirect flow. The frontend needs to read the access token after redirect, so it's set in a readable cookie. The refresh token is still httpOnly for security.
+
+### Token Refresh Flow
+
+**Endpoint:** `POST /authService/api/v1/refresh`
+
+1. Client sends request with `credentials: 'include'` → refresh token sent in cookie
+2. Auth-service validates refresh token from cookie
+3. Auth-service generates new TokenBundle (rotates both tokens)
+4. Auth-service sets new `refresh_token` cookie
+5. Auth-service returns **only new AccessToken** in JSON
+
+**Frontend auto-refresh:** The frontend's `fetchWithAuth()` automatically retries 401 responses after refreshing tokens.
+
+**Key Implementation:** `internal/auth/handler.go:146-207`
+
+### Logout Flow
+
+**Endpoint:** `POST /authService/api/v1/logout`
+
+1. Client POSTs to logout with `credentials: 'include'`
+2. Auth-service reads refresh token from cookie
+3. Auth-service revokes token in database
+4. Auth-service clears refresh token cookie (MaxAge: -1)
+5. Frontend clears localStorage tokens
+
+**Key Implementation:** `internal/auth/handler.go:102-144`
 
 ## API Endpoints
 
@@ -64,64 +140,9 @@ This centralizes authentication logic and allows backend services to focus on bu
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/authService/api/v1/me` | Get current user info |
+| GET | `/authService/api/v1/users/{user_id}` | Get user by ID |
 
-### Notes (Protected)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/authService/api/v1/notes` | Get all notes for user |
-| POST | `/authService/api/v1/notes` | Create a new note |
-| GET | `/authService/api/v1/notes/{note_id}` | Get a specific note |
-| PUT | `/authService/api/v1/notes/{note_id}` | Update a note |
-| DELETE | `/authService/api/v1/notes/{note_id}` | Delete a note |
-
-### Sharing
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/authService/api/v1/notes/{note_id}/share-links` | Protected | Create a share link for a note |
-| GET | `/authService/api/v1/share-links/{token}` | Public | Open a shared note via token |
-
-### Todo Tasks (Protected)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/authService/api/v1/todos` | Get all standalone tasks |
-| POST | `/authService/api/v1/todos` | Create a new task |
-| GET | `/authService/api/v1/todos/{todo_id}` | Get a specific task |
-| PUT | `/authService/api/v1/todos/{todo_id}` | Update a task |
-| DELETE | `/authService/api/v1/todos/{todo_id}` | Delete a task |
-
-### Todo Lists (Protected)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/authService/api/v1/todo-lists` | Get all todo lists with tasks |
-| POST | `/authService/api/v1/todo-lists` | Create a new todo list |
-| GET | `/authService/api/v1/todo-lists/{list_id}` | Get a specific todo list |
-| PUT | `/authService/api/v1/todo-lists/{list_id}` | Update a todo list |
-| DELETE | `/authService/api/v1/todo-lists/{list_id}` | Delete a todo list |
-
-### Reminders (Protected)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/authService/api/v1/reminders` | Get all reminders (supports `?status=PENDING\|COMPLETED`) |
-| POST | `/authService/api/v1/reminders` | Create a new reminder |
-| PUT | `/authService/api/v1/reminders` | Update a reminder |
-| GET | `/authService/api/v1/reminders/{reminder_id}` | Get a specific reminder |
-| DELETE | `/authService/api/v1/reminders/{reminder_id}` | Delete a reminder |
-
-### Notifications (Protected)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/authService/api/v1/notifications` | Get all notifications (supports `?read=true\|false`) |
-| DELETE | `/authService/api/v1/notifications` | Delete all notifications |
-| GET | `/authService/api/v1/notifications/unread-count` | Get unread notification count |
-| POST | `/authService/api/v1/notifications/read-all` | Mark all notifications as read |
-| POST | `/authService/api/v1/notifications/{notification_id}/read` | Mark a notification as read |
+**Note:** All other endpoints (notes, todos, reminders, notifications, sharing) should be accessed through the API Gateway service, not directly through the auth service. The auth service focuses on authentication and user management only.
 
 ## Configuration
 
@@ -144,18 +165,36 @@ The service is configured via environment variables:
 - `COOKIE_SECRET` - Secret for OAuth state cookies
 
 ### OAuth Providers
-- `OIDC_GOOGLE_CLIENT_ID` / `OIDC_GOOGLE_CLIENT_SECRET`
-- `OIDC_GITLAB_CLIENT_ID` / `OIDC_GITLAB_CLIENT_SECRET`
+
+Dynamic OIDC provider discovery via `OIDC_<PROVIDER>_*` environment variables:
+
+- `OIDC_GOOGLE_ENABLED` - Enable Google OAuth (default: `false`)
+- `OIDC_GOOGLE_PROVIDER_TYPE` - Provider type (default: `google`)
+- `OIDC_GOOGLE_ISSUER_URL` - OIDC issuer URL (`https://accounts.google.com`)
+- `OIDC_GOOGLE_CLIENT_ID` - Google OAuth client ID
+- `OIDC_GOOGLE_CLIENT_SECRET` - Google OAuth client secret
+- `OIDC_GOOGLE_REDIRECT_URL` - OAuth callback URL (must go through gateway: `http://localhost:8090/api/v1/auth/google/callback`)
+- `OIDC_GOOGLE_SCOPES` - OAuth scopes (comma-separated: `openid,email,profile`)
+
+- `OIDC_GITLAB_ENABLED` - Enable GitLab OAuth (default: `false`)
+- `OIDC_GITLAB_PROVIDER_TYPE` - Provider type (default: `gitlab`)
+- `OIDC_GITLAB_ISSUER_URL` - OIDC issuer URL (`https://gitlab.com`)
+- `OIDC_GITLAB_CLIENT_ID` - GitLab OAuth client ID
+- `OIDC_GITLAB_CLIENT_SECRET` - GitLab OAuth client secret
+- `OIDC_GITLAB_REDIRECT_URL` - OAuth callback URL (must go through gateway: `http://localhost:8090/api/v1/auth/gitlab/callback`)
+- `OIDC_GITLAB_SCOPES` - OAuth scopes (comma-separated: `openid,email,profile`)
+
+**Important:** OAuth redirect URLs must point to the API Gateway (port 8090), not directly to auth-service (port 8081). This ensures cookies are set from the gateway's domain/port for consistent cookie handling.
+
+### Frontend
+
+- `FRONTEND_URL` - Frontend URL to redirect after OAuth login (default: `http://localhost:5173`)
 
 ### Email (Resend)
 - `RESEND_API_KEY` - Resend API key
 - `RESEND_FROM_EMAIL` - From email address
 
-### Backend Services
-- `NOTES_SERVICE_URL` - Notes service URL (e.g., `http://notes-service:8082`)
-- `TODO_SERVICE_URL` - Todo service URL (e.g., `http://todo-service:8085`)
-- `REMINDER_SERVICE_URL` - Reminder service URL (e.g., `http://reminder-service:8084`)
-- `SHARING_SERVICE_URL` - Sharing service URL (e.g., `http://sharing-service:8083`)
+**Note:** Backend service URLs (notes, todos, etc.) are no longer needed in auth-service since the API Gateway handles all proxying.
 
 ## Running Locally
 
@@ -176,24 +215,39 @@ The service starts on `http://localhost:8081`.
 
 The service is deployed as part of the notes-cloud platform. See the `notes-cloud-infrastructure` repository for Kubernetes manifests.
 
+**Important:** Client applications should access the API Gateway (port 8090), not the auth-service directly. The auth-service runs on port 8081 internally within the cluster.
+
 ```bash
-# Port-forward to access locally
+# Access via API Gateway (recommended)
+kubectl port-forward -n notes-cloud svc/api-gateway 8090:8090
+
+# Direct access to auth-service (for debugging only)
 kubectl port-forward -n notes-cloud svc/auth-service 8081:8081
 ```
 
-## Architecture
+## System Architecture
 
 ```
 ┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│   Client    │────▶│   Auth Service   │────▶│  Notes Service  │
-│             │     │                  │     └─────────────────┘
-│             │     │  - Auth/JWT      │     ┌─────────────────┐
-│             │     │  - Token Valid.  │────▶│  Todo Service   │
-│             │     │  - User Context  │     └─────────────────┘
-│             │     │  - Proxy/Gateway │     ┌─────────────────┐
-│             │     │                  │────▶│ Reminder Service│
+│   Client    │────▶│   API Gateway    │────▶│  Auth Service   │
+│  (Browser)  │     │   (port 8090)    │     │   (port 8081)   │
+│             │     │                  │     │                 │
+│             │     │  - CORS          │     │ - Registration  │
+│             │     │  - Auth Proxy    │     │ - Login/Logout  │
+│             │     │  - JWT Valid.    │     │ - OAuth/OIDC    │
+│             │     │  - Credentials   │     │ - Token Mgmt    │
+│             │     │                  │     │ - User Mgmt     │
 └─────────────┘     └──────────────────┘     └─────────────────┘
-                                             ┌─────────────────┐
-                                        ────▶│ Sharing Service │
-                                             └─────────────────┘
+                             │
+                             ├──────────────▶ Notes Service
+                             ├──────────────▶ Todo Service
+                             ├──────────────▶ Reminder Service
+                             └──────────────▶ Sharing Service
 ```
+
+**Key Points:**
+- All client requests go through API Gateway
+- Gateway handles CORS with `Access-Control-Allow-Credentials: true`
+- Gateway proxies `/api/v1/auth/*` to auth-service
+- Gateway validates JWT tokens for protected routes before proxying
+- Auth-service sets cookies via gateway's domain/port for consistent cookie handling
