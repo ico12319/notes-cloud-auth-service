@@ -117,8 +117,9 @@ func (*apiFacade) Start() {
 	googleUserAuthInfoExtractor := oidc.NewOIDCUserAuthInfoExtractor(googleOIDCProvider)
 	gitLabUserAuthInfoExtractor := oidc.NewOIDCUserAuthInfoExtractor(gitLabOIDCProvider)
 
-	googleOIDCHandler := oidc.NewHandler(googleOIDCProvider, oidcCookieService, randomService, googleUserAuthInfoExtractor, userService, tokenBundleService, transact, cfg.FrontendURL)
-	gitLabOIDCHandler := oidc.NewHandler(gitLabOIDCProvider, oidcCookieService, randomService, gitLabUserAuthInfoExtractor, userService, tokenBundleService, transact, cfg.FrontendURL)
+	oauthSessionBuilder := oauth.NewOauthSessionBuilder(randomService)
+	googleOIDCHandler := oidc.NewHandler(googleOIDCProvider, oidcCookieService, oauthSessionBuilder, googleUserAuthInfoExtractor, userService, tokenBundleService, transact, cfg.FrontendURL)
+	gitLabOIDCHandler := oidc.NewHandler(gitLabOIDCProvider, oidcCookieService, oauthSessionBuilder, gitLabUserAuthInfoExtractor, userService, tokenBundleService, transact, cfg.FrontendURL)
 
 	// Public routes
 	r.HandleFunc("/authService/api/v1/healthz", healthHandler.Healthz).Methods(http.MethodGet)

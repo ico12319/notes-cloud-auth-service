@@ -196,9 +196,9 @@ func (h *handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "refresh_token",
 		Value:    tokenBundle.RefreshToken,
-		MaxAge:   7 * 24 * 60 * 60, // 7 days
+		MaxAge:   7 * 24 * 60 * 60,
 		HttpOnly: true,
-		Secure:   false, // false for HTTP (local dev)
+		Secure:   false,
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
 	})
