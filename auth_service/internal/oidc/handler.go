@@ -45,6 +45,7 @@ type handler struct {
 	userAuthInfoExtractor userAuthInfoExtractor
 	userResolver          userResolver
 	tokenBundleIssuer     tokenBundleIssuer
+	frontendURL           string
 }
 
 func NewHandler(
@@ -55,6 +56,7 @@ func NewHandler(
 	userResolver userResolver,
 	tokenBundleIssuer tokenBundleIssuer,
 	transact database.Transactioner,
+	frontendURL string,
 ) *handler {
 	return &handler{
 		oidcProvider:          oidcProvider,
@@ -64,6 +66,7 @@ func NewHandler(
 		userResolver:          userResolver,
 		tokenBundleIssuer:     tokenBundleIssuer,
 		transact:              transact,
+		frontendURL:           frontendURL,
 	}
 }
 
@@ -176,5 +179,25 @@ func (h *handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http_helpers.WriteSuccessResponse(w, http.StatusOK, tokenBundle)
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    tokenBundle.RefreshToken,
+		MaxAge:   7 * 24 * 60 * 60,
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+	})
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    tokenBundle.AccessToken.Token,
+		MaxAge:   3600,
+		HttpOnly: false,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+	})
+
+	http.Redirect(w, r, h.frontendURL, http.StatusFound)
 }
