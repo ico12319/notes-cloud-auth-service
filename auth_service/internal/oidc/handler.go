@@ -15,8 +15,8 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type randomGenerator interface {
-	GenerateRandomString(length int) (string, error)
+type oauthSessionBuilder interface {
+	Build() (*oauth.OAuthSession, error)
 }
 
 type cookieService interface {
@@ -41,7 +41,7 @@ type handler struct {
 	transact              database.Transactioner
 	oidcProvider          OIDCProvider
 	cookieService         cookieService
-	randomGenerator       randomGenerator
+	oauthSessionBuilder   oauthSessionBuilder
 	userAuthInfoExtractor userAuthInfoExtractor
 	userResolver          userResolver
 	tokenBundleIssuer     tokenBundleIssuer
@@ -51,7 +51,7 @@ type handler struct {
 func NewHandler(
 	oidcProvider OIDCProvider,
 	cookieService cookieService,
-	generator randomGenerator,
+	oauthSessionBuilder oauthSessionBuilder,
 	userAuthInfoExtractor userAuthInfoExtractor,
 	userResolver userResolver,
 	tokenBundleIssuer tokenBundleIssuer,
@@ -61,7 +61,7 @@ func NewHandler(
 	return &handler{
 		oidcProvider:          oidcProvider,
 		cookieService:         cookieService,
-		randomGenerator:       generator,
+		oauthSessionBuilder:   oauthSessionBuilder,
 		userAuthInfoExtractor: userAuthInfoExtractor,
 		userResolver:          userResolver,
 		tokenBundleIssuer:     tokenBundleIssuer,
@@ -73,32 +73,21 @@ func NewHandler(
 func (h *handler) Start(w http.ResponseWriter, r *http.Request) {
 	log.Println("GET /auth/google/start hit")
 
-	state, err := h.randomGenerator.GenerateRandomString(32)
+	oauthSession, err := h.oauthSessionBuilder.Build()
 	if err != nil {
-		log.Printf("failed to generate state: %v", err)
+		log.Printf("failed to build oauth session: %s", err.Error())
+
 		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
 		return
 	}
 
-	nonce, err := h.randomGenerator.GenerateRandomString(32)
-	if err != nil {
-		log.Printf("failed to generate nonce: %v", err)
-		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
-		return
-	}
-
-	session := oauth.OAuthSession{
-		State: state,
-		Nonce: nonce,
-	}
-
-	if err := h.cookieService.SetOAuthCookie(w, session); err != nil {
+	if err := h.cookieService.SetOAuthCookie(w, *oauthSession); err != nil {
 		log.Printf("failed to set oauth cookie: %v", err)
 		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeInternalServerError, err.Error())
 		return
 	}
 
-	authURL := h.oidcProvider.WithState(state).WithNonce(nonce).BuildAuthCodeURL()
+	authURL := h.oidcProvider.WithState(oauthSession.State).WithNonce(oauthSession.Nonce).BuildAuthCodeURL()
 
 	log.Printf("redirecting to auth url %s", authURL)
 
