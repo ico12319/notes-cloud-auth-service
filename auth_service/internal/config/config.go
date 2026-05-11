@@ -49,6 +49,7 @@ type Config struct {
 	Cookie        Cookie                        `json:"cookie"`
 	Resend        Resend                        `json:"resend"`
 	OIDCProviders map[string]OIDCProviderConfig `json:"oidcProviders"`
+	FrontendURL   string                        `json:"frontendURL"`
 }
 
 const oidcEnvPrefix = "OIDC_"
@@ -116,6 +117,9 @@ func Load() (*Config, error) {
 	}
 	if v := getEnv("RESEND_FROM_EMAIL"); v != "" {
 		cfg.Resend.FromEmail = v
+	}
+	if v := getEnv("FRONTEND_URL"); v != "" {
+		cfg.FrontendURL = v
 	}
 
 	if err := loadOIDCProvidersFromEnv(cfg); err != nil {

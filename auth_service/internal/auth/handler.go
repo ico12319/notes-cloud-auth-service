@@ -86,14 +86,25 @@ func (h *handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http_helpers.WriteSuccessResponse(w, http.StatusOK, loginResponse)
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    loginResponse.RefreshToken,
+		MaxAge:   7 * 24 * 60 * 60,
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+	})
+
+	http_helpers.WriteSuccessResponse(w, http.StatusOK, loginResponse.AccessToken)
 }
 
 func (h *handler) Logout(w http.ResponseWriter, r *http.Request) {
 	log.Println("/logout endpoint hit")
 
-	var request request_models.LogoutRequest
-	if err := http_helpers.DecodeRequestBody(w, r, &request); err != nil {
+	cookie, err := r.Cookie("refresh_token")
+	if err != nil {
+		http_helpers.WriteErrorResponse(w, http.StatusBadRequest, http_helpers.ErrCodeUnauthorized, "refresh token cookie not found")
 		return
 	}
 
@@ -109,7 +120,7 @@ func (h *handler) Logout(w http.ResponseWriter, r *http.Request) {
 
 	ctx = database.SaveToContext(ctx, tx)
 
-	if err := h.refreshTokenRevoker.Revoke(ctx, request.RefreshToken); err != nil {
+	if err := h.refreshTokenRevoker.Revoke(ctx, cookie.Value); err != nil {
 		http_helpers.WriteErrorResponse(w, http.StatusInternalServerError, http_helpers.ErrCodeUserLogoutFailed, err.Error())
 		return
 	}
@@ -119,14 +130,25 @@ func (h *handler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+	})
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	log.Printf("/refresh hit")
 
-	var request request_models.RefreshRequest
-	if err := http_helpers.DecodeRequestBody(w, r, &request); err != nil {
+	cookie, err := r.Cookie("refresh_token")
+	if err != nil {
+		http_helpers.WriteErrorResponse(w, http.StatusUnauthorized, http_helpers.ErrCodeUnauthorized, "refresh token cookie not found")
 		return
 	}
 
@@ -142,9 +164,22 @@ func (h *handler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	ctx = database.SaveToContext(ctx, tx)
 
-	tokenBundle, err := h.refreshService.Refresh(ctx, &request)
+	refreshRequest := &request_models.RefreshRequest{
+		RefreshToken: cookie.Value,
+	}
+
+	tokenBundle, err := h.refreshService.Refresh(ctx, refreshRequest)
 	if err != nil {
 		if api_errors.IsInvalidRefreshTokenError(err) {
+			http.SetCookie(w, &http.Cookie{
+				Name:     "refresh_token",
+				Value:    "",
+				MaxAge:   -1,
+				HttpOnly: true,
+				Secure:   false,
+				SameSite: http.SameSiteLaxMode,
+				Path:     "/",
+			})
 			http_helpers.WriteErrorResponse(w, http.StatusUnauthorized, http_helpers.ErrCodeUnauthorized, err.Error())
 			return
 		}
@@ -158,5 +193,15 @@ func (h *handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http_helpers.WriteSuccessResponse(w, http.StatusOK, tokenBundle)
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    tokenBundle.RefreshToken,
+		MaxAge:   7 * 24 * 60 * 60, // 7 days
+		HttpOnly: true,
+		Secure:   false, // false for HTTP (local dev)
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+	})
+
+	http_helpers.WriteSuccessResponse(w, http.StatusOK, tokenBundle.AccessToken)
 }
