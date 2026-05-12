@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/api_errors"
@@ -31,7 +33,7 @@ type randomService interface {
 }
 
 type refreshTokenRepository interface {
-	Create(ctx context.Context, refreshToken *models.RefreshToken, tokenHash string) error
+	Create(ctx context.Context, refreshToken *models.RefreshToken) error
 	Revoke(ctx context.Context, tokenID string) error
 	Get(ctx context.Context, tokenID string) (*models.RefreshToken, error)
 }
@@ -82,10 +84,11 @@ func (s *service) GenerateForUser(ctx context.Context, userID string) (*models.R
 		ID:        refreshTokenID,
 		UserID:    userID,
 		RawToken:  rawToken,
+		TokenHash: s.hashRefreshToken(rawToken, []byte(s.refreshTokenSecret)),
 		ExpiresAt: s.timeService.Now().Add(30 * 24 * time.Hour),
 	}
 
-	if err := s.refreshTokenRepository.Create(ctx, generatedRefreshToken, s.hashRefreshToken(rawToken, []byte(s.refreshTokenSecret))); err != nil {
+	if err := s.refreshTokenRepository.Create(ctx, generatedRefreshToken); err != nil {
 		return nil, err
 	}
 
@@ -93,20 +96,12 @@ func (s *service) GenerateForUser(ctx context.Context, userID string) (*models.R
 }
 
 func (s *service) Revoke(ctx context.Context, rawToken string) error {
-	tokenID, err := s.extractIDFromRawToken(rawToken)
+	token, err := s.Get(ctx, rawToken)
 	if err != nil {
-		log.Printf("failed to extract id from raw token %s", err.Error())
-
 		return err
 	}
 
-	if err := s.refreshTokenRepository.Revoke(ctx, tokenID); err != nil {
-		if api_errors.IsInvalidRefreshTokenError(err) {
-			log.Printf("refresh token with id %s is already deleted, won't revoked it", tokenID)
-
-			return nil
-		}
-
+	if err := s.refreshTokenRepository.Revoke(ctx, token.ID); err != nil {
 		return err
 	}
 
@@ -123,7 +118,17 @@ func (s *service) Get(ctx context.Context, rawToken string) (*models.RefreshToke
 
 	token, err := s.refreshTokenRepository.Get(ctx, tokenID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, api_errors.ErrTokenNotFound
+		}
+
 		return nil, err
+	}
+
+	providedTokenHash := s.hashRefreshToken(rawToken, []byte(s.refreshTokenSecret))
+
+	if !hmac.Equal([]byte(providedTokenHash), []byte(token.TokenHash)) {
+		return nil, api_errors.ErrInvalidRefreshToken
 	}
 
 	return token, nil
