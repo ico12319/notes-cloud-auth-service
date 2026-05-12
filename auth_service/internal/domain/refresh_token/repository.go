@@ -9,7 +9,7 @@ import (
 )
 
 type refreshTokenConverter interface {
-	ToEntity(refreshToken *models.RefreshToken, tokenHash string) (*Entity, error)
+	ToEntity(refreshToken *models.RefreshToken) (*Entity, error)
 	ToModel(entity *Entity) *models.RefreshToken
 }
 
@@ -23,8 +23,8 @@ func NewRepository(refreshTokenConverter refreshTokenConverter) *repository {
 	}
 }
 
-func (r *repository) Create(ctx context.Context, refreshToken *models.RefreshToken, tokenHash string) error {
-	entity, err := r.refreshTokenConverter.ToEntity(refreshToken, tokenHash)
+func (r *repository) Create(ctx context.Context, refreshToken *models.RefreshToken) error {
+	entity, err := r.refreshTokenConverter.ToEntity(refreshToken)
 	if err != nil {
 		return err
 	}

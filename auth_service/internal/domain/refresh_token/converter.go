@@ -13,7 +13,7 @@ func NewConverter() *converter {
 	return &converter{}
 }
 
-func (*converter) ToEntity(refreshToken *models.RefreshToken, tokenHash string) (*Entity, error) {
+func (*converter) ToEntity(refreshToken *models.RefreshToken) (*Entity, error) {
 	stringifiedID, err := uuid.Parse(refreshToken.ID)
 	if err != nil {
 		log.Printf("failed to stringify refresh token id %s: err: %s", refreshToken.ID, err.Error())
@@ -32,7 +32,7 @@ func (*converter) ToEntity(refreshToken *models.RefreshToken, tokenHash string) 
 	entity := &Entity{
 		ID:        stringifiedID,
 		UserID:    stringifiedUserID,
-		TokenHash: tokenHash,
+		TokenHash: refreshToken.TokenHash,
 		ExpiresAt: refreshToken.ExpiresAt,
 		CreatedAt: refreshToken.CreatedAt,
 	}
@@ -52,6 +52,7 @@ func (*converter) ToModel(entity *Entity) *models.RefreshToken {
 		ID:        entity.ID.String(),
 		UserID:    entity.UserID.String(),
 		ExpiresAt: entity.ExpiresAt,
+		TokenHash: entity.TokenHash,
 		CreatedAt: entity.CreatedAt,
 	}
 
