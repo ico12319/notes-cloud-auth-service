@@ -2,6 +2,8 @@ package api_facade
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
@@ -26,6 +28,10 @@ import (
 	"github.com/notes-in-the-cloud/notes-cloud-jwt-utils/accesstoken"
 	"log"
 	"net/http"
+	"os/signal"
+	"sync"
+	"syscall"
+	time2 "time"
 )
 
 type apiFacade struct{}
@@ -76,8 +82,9 @@ func (*apiFacade) Start() {
 	randomService := random.NewService(stringEncoder)
 	transact := database.NewSqlDb(db)
 
+	var wg sync.WaitGroup
 	r := mux.NewRouter()
-	r.Use(middleware.JSONContentType)
+	r.Use(middleware.JSONContentType, middleware.HTTPRequestTracker(&wg))
 
 	healthHandler := probes.NewHealthHandler(db)
 
@@ -141,7 +148,60 @@ func (*apiFacade) Start() {
 
 	log.Println("Server started on http://localhost:8081")
 
-	if err := http.ListenAndServe(":8081", r); err != nil {
-		log.Fatal(err)
+	srv := &http.Server{
+		Addr:    ":8081",
+		Handler: r,
 	}
+
+	const shutdownTimeout = 25 * time2.Second
+	serverErrorChan := make(chan error, 1)
+	
+	go func() {
+		if err := srv.ListenAndServe(); err != nil &&
+			!errors.Is(err, http.ErrServerClosed) {
+			log.Println(fmt.Sprintf("error different from ServerClosed occurred %s",
+				err.Error()))
+
+			serverErrorChan <- err
+		}
+	}()
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	select {
+	case <-ctx.Done():
+		log.Println("shutting down... (Ctrl+C again to force)")
+		stop()
+
+	case err := <-serverErrorChan:
+		log.Fatalf("server failed: %v", err)
+	}
+
+	shutCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	shutDownErrChan := make(chan error, 1)
+	// Shutdown is a blocking operation so it is spawned in a goroutine
+	go func() {
+		shutDownErrChan <- srv.Shutdown(shutCtx)
+	}()
+
+	// waitDone is a cancellation channel and we are spawning one more goroutine because Wait is a blocking operation
+	waitDone := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(waitDone)
+	}()
+
+	select {
+	case <-waitDone:
+		if err := <-shutDownErrChan; err != nil {
+			log.Printf("server shutdown error: %v", err)
+		}
+		log.Println("all requests done, clean exit")
+	case <-shutCtx.Done():
+		log.Printf("shutdown timeout after %s, forcing exit\n", shutdownTimeout)
+	}
+
 }
