@@ -17,6 +17,7 @@ import (
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/domain/users"
 	email_verification "github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/email-verification"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/encoder"
+	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/hasher"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/middleware"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/oauth"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/oidc"
@@ -94,10 +95,10 @@ func (*apiFacade) Start() {
 	identityConverter := user_identities.NewConverter()
 	identityRepo := user_identities.NewRepository(identityConverter)
 	identityService := user_identities.NewService(identityRepo, uuidService, timeService)
-
+	tokenHasher := hasher.NewTokenHasher()
 	emailVerificationTokenServiceConverter := email_verification_tokens.NewConverter()
 	emailVerificationTokenServiceRepository := email_verification_tokens.NewRepository(emailVerificationTokenServiceConverter)
-	emailVerificationTokenServiceService := email_verification_tokens.NewService(emailVerificationTokenServiceRepository, uuidService, timeService)
+	emailVerificationTokenServiceService := email_verification_tokens.NewService(emailVerificationTokenServiceRepository, uuidService, timeService, tokenHasher)
 
 	verificationEmailContentGenerator := email_verification.NewEmailContentGenerator()
 	emailSenderService := email_verification.NewService(cfg.Resend.APIKey, cfg.Resend.FromEmail, verificationEmailContentGenerator)
@@ -155,7 +156,7 @@ func (*apiFacade) Start() {
 
 	const shutdownTimeout = 25 * time2.Second
 	serverErrorChan := make(chan error, 1)
-	
+
 	go func() {
 		if err := srv.ListenAndServe(); err != nil &&
 			!errors.Is(err, http.ErrServerClosed) {
