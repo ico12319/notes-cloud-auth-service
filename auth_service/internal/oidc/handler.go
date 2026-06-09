@@ -170,12 +170,14 @@ func (h *handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	tokenBundle, err := h.tokenBundleIssuer.GenerateBundle(ctx, resolvedUser.ID)
 	if err != nil {
+		log.Printf("GenerateBundle failed: %v", err)
 		http.Redirect(w, r, fmt.Sprintf("%s?error=token_failed&message=%s",
 			h.frontendURL, "Failed to generate authentication token"), http.StatusFound)
 		return
 	}
 
 	if err := tx.Commit(); err != nil {
+		log.Printf("tx.Commit failed: %v", err)
 		http.Redirect(w, r, fmt.Sprintf("%s?error=server_error&message=%s",
 			h.frontendURL, "Server error occurred. Please try again."), http.StatusFound)
 		return
@@ -186,9 +188,10 @@ func (h *handler) Callback(w http.ResponseWriter, r *http.Request) {
 		Value:    tokenBundle.RefreshToken,
 		MaxAge:   7 * 24 * 60 * 60,
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
+		Domain:   ".notes-cloud.org",
 	})
 
 	http.SetCookie(w, &http.Cookie{
@@ -196,9 +199,10 @@ func (h *handler) Callback(w http.ResponseWriter, r *http.Request) {
 		Value:    tokenBundle.AccessToken.Token,
 		MaxAge:   3600,
 		HttpOnly: false,
-		Secure:   false,
+		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
+		Domain:   ".notes-cloud.org",
 	})
 
 	http.Redirect(w, r, h.frontendURL, http.StatusFound)

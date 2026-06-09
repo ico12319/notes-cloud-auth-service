@@ -92,6 +92,14 @@ type Transaction struct {
 	committed bool
 }
 
+func (t *Transaction) Commit() error {
+	err := t.Tx.Commit()
+	if err == nil {
+		t.committed = true
+	}
+	return err
+}
+
 //go:generate mockery --name=PersistenceTx --output=automock --outpkg=automock --case=underscore --disable-version-string --with-expecter
 type persistenceTx interface {
 	Commit() error
