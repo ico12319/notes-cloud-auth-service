@@ -46,6 +46,8 @@ type handler struct {
 	userResolver          userResolver
 	tokenBundleIssuer     tokenBundleIssuer
 	frontendURL           string
+	cookieDomain          string
+	cookieSecure          bool
 }
 
 func NewHandler(
@@ -57,6 +59,8 @@ func NewHandler(
 	tokenBundleIssuer tokenBundleIssuer,
 	transact database.Transactioner,
 	frontendURL string,
+	cookieDomain string,
+	cookieSecure bool,
 ) *handler {
 	return &handler{
 		oidcProvider:          oidcProvider,
@@ -67,6 +71,8 @@ func NewHandler(
 		tokenBundleIssuer:     tokenBundleIssuer,
 		transact:              transact,
 		frontendURL:           frontendURL,
+		cookieDomain:          cookieDomain,
+		cookieSecure:          cookieSecure,
 	}
 }
 
@@ -188,10 +194,10 @@ func (h *handler) Callback(w http.ResponseWriter, r *http.Request) {
 		Value:    tokenBundle.RefreshToken,
 		MaxAge:   7 * 24 * 60 * 60,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   h.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
-		Domain:   ".notes-cloud.org",
+		Domain:   h.cookieDomain,
 	})
 
 	http.SetCookie(w, &http.Cookie{
@@ -199,10 +205,10 @@ func (h *handler) Callback(w http.ResponseWriter, r *http.Request) {
 		Value:    tokenBundle.AccessToken.Token,
 		MaxAge:   3600,
 		HttpOnly: false,
-		Secure:   true,
+		Secure:   h.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
-		Domain:   ".notes-cloud.org",
+		Domain:   h.cookieDomain,
 	})
 
 	http.Redirect(w, r, h.frontendURL, http.StatusFound)

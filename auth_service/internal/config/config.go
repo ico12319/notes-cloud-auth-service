@@ -23,6 +23,8 @@ type RefreshToken struct {
 
 type Cookie struct {
 	Secret string `json:"secret"`
+	Domain string `json:"domain"`
+	Secure bool   `json:"secure"`
 }
 
 type Resend struct {
@@ -111,6 +113,13 @@ func Load() (*Config, error) {
 	}
 	if v := getEnv("COOKIE_SECRET"); v != "" {
 		cfg.Cookie.Secret = v
+	}
+	if v := getEnv("COOKIE_DOMAIN"); v != "" {
+		cfg.Cookie.Domain = v
+	}
+	if v := getEnv("COOKIE_SECURE"); v != "" {
+		b, _ := strconv.ParseBool(v)
+		cfg.Cookie.Secure = b
 	}
 	if v := getEnv("RESEND_API_KEY"); v != "" {
 		cfg.Resend.APIKey = v
