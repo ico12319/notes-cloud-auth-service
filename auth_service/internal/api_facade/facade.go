@@ -70,7 +70,7 @@ func (*apiFacade) Start() {
 
 	log.Println("GitLab OIDC provider initialized")
 
-	oidcCookieService, err := oauth.NewCookieService(cfg.Cookie.Secret, false)
+	oidcCookieService, err := oauth.NewCookieService(cfg.Cookie.Secret, true)
 	if err != nil {
 		log.Fatalf("Failed to initialize OIDC cookie service: %v", err)
 	}
