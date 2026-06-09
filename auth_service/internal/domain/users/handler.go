@@ -15,6 +15,8 @@ import (
 	"time"
 )
 
+const maxNameLength = 15
+
 type structValidator interface {
 	Struct(v any) error
 }
@@ -93,6 +95,12 @@ func (h *handler) Register(w http.ResponseWriter, r *http.Request) {
 
 	var request request_models.RegisterRequest
 	if err := http_helpers.DecodeRequestBody(w, r, &request); err != nil {
+		return
+	}
+
+	if len(request.Name) > maxNameLength {
+		http_helpers.WriteErrorResponse(w, http.StatusBadRequest, http_helpers.ErrCodeInvalidLoginCredentials,
+			fmt.Sprintf("name should be maximum 15 symbols long"))
 		return
 	}
 
