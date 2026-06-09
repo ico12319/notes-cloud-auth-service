@@ -180,7 +180,7 @@ func (h *handler) Refresh(w http.ResponseWriter, r *http.Request) {
 				SameSite: http.SameSiteLaxMode,
 				Path:     "/",
 			})
-			http_helpers.WriteErrorResponse(w, http.StatusUnauthorized, http_helpers.ErrCodeUnauthorized, err.Error())
+			http_helpers.WriteErrorResponse(w, http.StatusForbidden, http_helpers.ErrCodeForbidden, err.Error())
 			return
 		}
 

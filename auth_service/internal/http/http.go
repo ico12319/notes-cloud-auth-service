@@ -16,7 +16,7 @@ const (
 	ErrCodeTransactionCommitFailed = "TRANSACTION_COMMIT_FAILED"
 	ErrCodeInternalServerError     = "INTERNAL_SERVER_ERROR"
 	ErrCodeUnauthorized            = "UNAUTHORIZED"
-
+	ErrCodeForbidden               = "FORBIDDEN"
 	ErrCodeInvalidLoginCredentials = "INVALID_LOGIN_CREDENTIALS"
 	ErrCodeUserLoginFailed         = "USER_LOGIN_FAILED"
 	ErrCodeUserLogoutFailed        = "USER_LOGOUT_FAILED"
