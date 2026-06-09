@@ -2,8 +2,6 @@ package email_verification_tokens
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"github.com/notes-in-the-cloud/notes-cloud-auth-service/internal/models"
 	"time"
 )
@@ -23,20 +21,28 @@ type timeGenerator interface {
 	Now() time.Time
 }
 
+type tokenHasher interface {
+	Hash(rawToken string) string
+}
+
 type service struct {
 	emailVerificationRepository emailVerificationRepository
 	uuidGenerator               uuidGenerator
 	timeGenerator               timeGenerator
+	tokenHasher                 tokenHasher
 }
 
 func NewService(
 	emailVerificationRepository emailVerificationRepository,
 	uuidGenerator uuidGenerator,
-	timeGenerator timeGenerator) *service {
+	timeGenerator timeGenerator,
+	tokenHasher tokenHasher,
+) *service {
 	return &service{
 		emailVerificationRepository: emailVerificationRepository,
 		uuidGenerator:               uuidGenerator,
 		timeGenerator:               timeGenerator,
+		tokenHasher:                 tokenHasher,
 	}
 }
 
@@ -44,7 +50,7 @@ func (s *service) Create(ctx context.Context, verificationCode, userID string) (
 	emailVerificationCode := &models.EmailVerificationToken{
 		ID:        s.uuidGenerator.Generate(),
 		UserID:    userID,
-		TokenHash: hashToken(verificationCode),
+		TokenHash: s.tokenHasher.Hash(verificationCode),
 		ExpiresAt: s.timeGenerator.Now().Add(180 * time.Second),
 		CreatedAt: s.timeGenerator.Now(),
 	}
@@ -57,7 +63,7 @@ func (s *service) Create(ctx context.Context, verificationCode, userID string) (
 }
 
 func (s *service) FindToken(ctx context.Context, token string) (*models.EmailVerificationToken, error) {
-	return s.emailVerificationRepository.GetByTokenHash(ctx, hashToken(token))
+	return s.emailVerificationRepository.GetByTokenHash(ctx, s.tokenHasher.Hash(token))
 }
 
 func (s *service) Delete(ctx context.Context, id string) error {
@@ -66,10 +72,4 @@ func (s *service) Delete(ctx context.Context, id string) error {
 
 func (s *service) DeleteByUserID(ctx context.Context, userID string) error {
 	return s.emailVerificationRepository.DeleteByUserID(ctx, userID)
-}
-
-func hashToken(rawToken string) string {
-	hash := sha256.Sum256([]byte(rawToken))
-
-	return base64.RawURLEncoding.EncodeToString(hash[:])
 }
