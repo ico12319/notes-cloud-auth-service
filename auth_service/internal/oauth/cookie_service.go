@@ -102,7 +102,7 @@ func (cs *CookieService) ClearOAuthCookie(w http.ResponseWriter) {
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   cs.secureCookies,
 		SameSite: http.SameSiteLaxMode,
 	})
 }

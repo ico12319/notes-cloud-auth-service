@@ -130,9 +130,22 @@ func (s *service) FindOrCreateByOAuthIdentity(ctx context.Context, userAuthInfo 
 
 	if identity != nil {
 		if identity.Email != userAuthInfo.Email {
+			existingUser, err := s.FindByEmail(ctx, userAuthInfo.Email)
+			if err != nil && !api_errors.IsUserNotFoundError(err) {
+				return nil, err
+			}
+
+			if existingUser != nil && existingUser.ID != identity.UserID {
+				return nil, api_errors.ErrEmailAlreadyExist
+			}
+
 			if _, err := s.identityService.UpdateEmail(ctx, identity.UserID, userAuthInfo.Email); err != nil {
 				return nil, err
 			}
+
+			return s.UpdateUser(ctx, identity.UserID, &models.UserPatch{
+				Email: util.GenericPtr(userAuthInfo.Email),
+			})
 		}
 
 		return s.FindByID(ctx, identity.UserID)

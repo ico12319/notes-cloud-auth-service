@@ -77,7 +77,7 @@ func (s *service) Refresh(ctx context.Context, request *request_models.RefreshRe
 	}
 
 	if _, err := s.userService.FindByID(ctx, refreshToken.UserID); err != nil {
-		log.Printf("failed to find user with %s when tryin to refresh token bundle", refreshToken.UserID)
+		log.Printf("failed to find user with %s when trying to refresh token bundle", refreshToken.UserID)
 
 		return nil, err
 	}
