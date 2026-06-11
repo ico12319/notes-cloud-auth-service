@@ -103,7 +103,7 @@ func (h *handler) Start(w http.ResponseWriter, r *http.Request) {
 func (h *handler) Callback(w http.ResponseWriter, r *http.Request) {
 	log.Println("/callback was hit")
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 1*time.Minute)
 	defer cancel()
 
 	session, err := h.cookieService.ReadOAuthCookie(r)
